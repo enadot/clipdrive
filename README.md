@@ -1,25 +1,113 @@
-# CODING AGENTS: READ THIS FIRST
+# ClipDrive
 
-This is a **handoff bundle** from Claude Design (claude.ai/design).
+מדביקים לינק יוטיוב, בוחרים MP4 או MP3, בוחרים תיקייה בגוגל דרייב — והקובץ המומר מחכה שם.
 
-A user mocked up designs in HTML/CSS/JS using an AI design tool, then exported this bundle so a coding agent can implement the designs for real.
+כלי אישי למשתמש יחיד. הממשק בעברית, RTL מלא, מצב בהיר וכהה, ורספונסיבי עד 360px.
 
-## What you should do — IMPORTANT
+---
 
-**Read the chat transcripts first.** There are 1 chat transcript(s) in `chats/`. The transcripts show the full back-and-forth between the user and the design assistant — they tell you **what the user actually wants** and **where they landed** after iterating. Don't skip them. The final HTML files are the output, but the chat is where the intent lives.
+## מה זה כולל
 
-**Read `project/ClipDrive Spec v2.dc.html` in full.** The user had this file open when they triggered the handoff, so it's almost certainly the primary design they want built. Read it top to bottom — don't skim. Then **follow its imports**: open every file it pulls in (shared components, CSS, scripts) so you understand how the pieces fit together before you start implementing.
+צנרת אמיתית בשלושה שלבים, עם התקדמות חיה בכל אחד מהם:
 
-**If anything is ambiguous, ask the user to confirm before you start implementing.** It's much cheaper to clarify scope up front than to build the wrong thing.
+1. **הורדה** — `yt-dlp` מוריד את הזרמים הטובים ביותר עד לאיכות שנבחרה.
+2. **המרה** — `ffmpeg` עוטף ל-MP4 (העתקת זרמים כשאפשר, קידוד מחדש רק כשחייבים)
+   או ממיר ל-MP3 ב-320kbps עם תגיות ID3.
+3. **העלאה** — הקובץ עולה לתיקיית הדרייב שנבחרה.
 
-## About the design files
+השלבים נפרדים בכוונה: אם שלב נכשל, מה שכבר הושלם נשמר על הדיסק, וניסיון חוזר
+ממשיך מהשלב שנפל במקום להתחיל מחדש.
 
-The design medium is **HTML/CSS/JS** — these are prototypes, not production code. Your job is to **recreate them pixel-perfectly** in whatever technology makes sense for the target codebase (React, Vue, native, whatever fits). Match the visual output; don't copy the prototype's internal structure unless it happens to fit.
+---
 
-**Don't render these files in a browser or take screenshots unless the user asks you to.** Everything you need — dimensions, colors, layout rules — is spelled out in the source. Read the HTML and CSS directly; a screenshot won't tell you anything they don't.
+## התקנה
 
-## Bundle contents
+### דרישות מוקדמות
 
-- `README.md` — this file
-- `chats/` — conversation transcripts (read these!)
-- `project/` — the `ClipDrive — בריף עיצוב` project files (HTML prototypes, assets, components)
+```bash
+# yt-dlp
+pip install yt-dlp
+
+# ffmpeg (כולל ffprobe)
+sudo apt install ffmpeg      # Debian / Ubuntu
+brew install ffmpeg          # macOS
+```
+
+### הרשאות גוגל דרייב
+
+1. פתחו פרויקט ב-[Google Cloud Console](https://console.cloud.google.com/) והפעילו את **Google Drive API**.
+2. צרו **OAuth client ID** מסוג *Web application*.
+3. הוסיפו כ-Authorized redirect URI בדיוק את הכתובת:
+   `http://localhost:3000/api/auth/google/callback`
+4. העתיקו את `.env.example` ל-`.env` ומלאו `GOOGLE_CLIENT_ID` ו-`GOOGLE_CLIENT_SECRET`.
+
+האפליקציה מבקשת **`drive.file` בלבד** — ההרשאה המצומצמת ביותר שמאפשרת כתיבה.
+היא נותנת גישה רק לקבצים ולתיקיות שהאפליקציה עצמה יצרה; שאר הדרייב נשאר בלתי
+נראה לה. זו הסיבה שבורר התיקיות מציע ליצור תיקייה מתוך האפליקציה — אין דרך אחרת.
+
+### הרצה
+
+```bash
+npm install
+npm run dev     # http://localhost:3000
+```
+
+---
+
+## מבנה
+
+```
+src/
+  app/
+    page.tsx            מסך ראשי: לינק, תצוגה מקדימה, פורמט, איכות, יעד
+    jobs/page.tsx       רשימת משימות מלאה + היסטוריה לפי יום
+    api/
+      auth/google/      OAuth: הפניה לאישור, callback, ניתוק
+      drive/folders/    רשימת תיקיות ויצירת תיקייה
+      video/            מטא-דאטה של סרטון + הערכות גודל לכל איכות
+      jobs/             יצירה, רשימה, פעולות על משימה
+      jobs/stream/      SSE — ההתקדמות שמזינה את מד ההתקדמות
+  lib/
+    youtube.ts          עטיפת yt-dlp: מטא-דאטה, הורדה, סיווג שגיאות
+    convert.ts          עטיפת ffmpeg: MP4 / MP3 עם התקדמות דטרמיניסטית
+    drive.ts            לקוח Drive: תיקיות והעלאה
+    jobs.ts             תור, מכונת מצבים, השהיה / ביטול / ניסיון חוזר
+    format.ts           פורמוט עברי: גדלים, זמנים, ETA
+  components/           רכיבי HeroUI v3
+```
+
+### החלטות שכדאי להכיר
+
+- **רכיבי HeroUI v3 בלבד.** הטוקנים של HeroUI (`--accent`, `--surface`, `--muted`
+  וכו׳) ממופים ב-`globals.css` לפלטה של העיצוב, כך שהרכיבים מקבלים את המראה
+  הנכון בלי לעקוף אותם.
+- **משימה אחת בכל רגע.** `MAX_CONCURRENT` ב-`jobs.ts`. המקום בתור שמוצג על כרטיס
+  ממתין הוא אמיתי.
+- **מד ההתקדמות דטרמיניסטי תמיד** — אחוז והערכת זמן, אף פעם לא ספינר. ה-shimmer
+  מופיע רק על המקטע הפעיל, ושגיאה צובעת רק את השלב שנפל.
+- **הפונט Tel Aviv Modernist מוגבל לטווח העברי** (`unicode-range` ב-`globals.css`).
+  זה פונט תצוגה שבו הספרה 0 היא עיגול והאותיות הקטנות בגובה גדולות, כך
+  ש-"1080p" היה נקרא "1O8OP". העברית נשארת בדיוק כמו בעיצוב; ספרות ולטינית
+  עוברות לפונט ממשק. להחזרת הפונט לכל התווים — מחקו את שתי שורות ה-`unicode-range`.
+- **נתונים מקומיים** ב-`~/.clipdrive` (טוקן, היסטוריה, קבצי עבודה). לשינוי:
+  `CLIPDRIVE_DATA_DIR`.
+
+---
+
+## עיצוב
+
+הבסיס הוא `project/ClipDrive Spec v2.dc.html` — ה-handoff מ-Claude Design, יחד עם
+התכתובת ב-`chats/`. מסך "לא מחובר לדרייב" ורשימת המשימות המלאה הובאו מגרסה 1
+(`project/ClipDrive Spec.dc.html`) ועוצבו מחדש בשפה של v2.
+
+---
+
+## סקריפטים
+
+```bash
+npm run dev         # שרת פיתוח
+npm run build       # בילד לפרודקשן
+npm run start       # הרצת הבילד
+npm run lint        # ESLint
+npm run typecheck   # tsc --noEmit
+```

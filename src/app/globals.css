@@ -1,0 +1,210 @@
+/* Tailwind v4 first, then HeroUI — order matters for the layer cascade. */
+@import "tailwindcss";
+@import "@heroui/styles";
+
+/* ------------------------------------------------------------------ */
+/* Tel Aviv Modernist — the typeface the v2 spec ships and uses.       */
+/* ------------------------------------------------------------------ */
+/*
+ * Tel Aviv Modernist is a Hebrew display face: its zero is a perfect circle and
+ * its lowercase sit at cap height, so Latin runs render as "1O8OP" / "72OP".
+ * That is fine for the spec's headline mockups but not for a tool whose screens
+ * are full of "1080p · ~890MB · 4.2MB/s · 12:08". Scoping the face to the
+ * Hebrew blocks keeps the designed Hebrew voice exactly and hands Latin and
+ * digits to the UI fallback.
+ *
+ * To use the face for everything instead, delete the two unicode-range lines.
+ */
+@font-face {
+  font-family: "TelAviv";
+  src: url("/fonts/telaviv-modernist-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0590-05FF, U+FB1D-FB4F, U+200F, U+2010-2027;
+}
+
+@font-face {
+  font-family: "TelAviv";
+  src: url("/fonts/telaviv-modernist-bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0590-05FF, U+FB1D-FB4F, U+200F, U+2010-2027;
+}
+
+@theme {
+  --font-sans: "TelAviv", "IBM Plex Sans Hebrew", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", sans-serif;
+
+  /* The outer frame around a screen, one step stronger than --border. */
+  --color-frame: var(--frame-border);
+
+  --animate-shimmer: shimmer 1.6s infinite;
+  --animate-soft-pulse: soft-pulse 1.4s infinite;
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes soft-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* ClipDrive theme — the v2 spec's tokens mapped onto HeroUI's.        */
+/* Every value below comes straight from the design file, so HeroUI    */
+/* components render in the spec's palette without per-element         */
+/* overrides.                                                          */
+/* ------------------------------------------------------------------ */
+@layer base {
+  :root,
+  .light,
+  [data-theme="light"] {
+    color-scheme: light;
+
+    --background: #f7f7f8;
+    --foreground: #1a1a1e;
+
+    --surface: #ffffff;
+    --surface-foreground: var(--foreground);
+    --surface-secondary: #f1f1f3;
+    --surface-secondary-foreground: var(--foreground);
+    --surface-tertiary: #e9e9ec;
+    --surface-tertiary-foreground: var(--foreground);
+    --surface-hover: #f1f1f3;
+
+    --overlay: #ffffff;
+    --overlay-foreground: var(--foreground);
+
+    --muted: #73737e;
+
+    --border: #e5e5e8;
+    --separator: #e5e5e8;
+    --frame-border: #d8d8de;
+
+    --accent: #10b981;
+    --accent-hover: #0d9f6e;
+    --accent-foreground: #ffffff;
+    --accent-soft: rgba(16, 185, 129, 0.12);
+    --accent-soft-hover: rgba(16, 185, 129, 0.18);
+    --accent-soft-foreground: #0d9f6e;
+
+    --link: #0d9f6e;
+    --focus: #10b981;
+
+    --default: #f1f1f3;
+    --default-foreground: var(--foreground);
+    --default-hover: #e9e9ec;
+    --default-soft: #f1f1f3;
+    --default-soft-foreground: var(--muted);
+    --default-soft-hover: #e9e9ec;
+
+    --danger: #dc2626;
+    --danger-foreground: #ffffff;
+    --danger-hover: #b91c1c;
+    --danger-soft: rgba(220, 38, 38, 0.1);
+    --danger-soft-foreground: #dc2626;
+    --danger-soft-hover: rgba(220, 38, 38, 0.16);
+
+    --success: var(--accent);
+    --success-foreground: var(--accent-foreground);
+    --success-soft: var(--accent-soft);
+    --success-soft-foreground: var(--accent-soft-foreground);
+
+    --field-background: var(--surface);
+    --field-foreground: var(--foreground);
+    --field-border: var(--border);
+    --field-border-hover: #d8d8de;
+    --field-border-focus: var(--accent);
+    --field-placeholder: var(--muted);
+    --field-border-width: 1px;
+    --field-shadow: none;
+
+    --segment: var(--surface);
+    --segment-foreground: var(--foreground);
+
+    /* The spec's frame shadow, reused as HeroUI's surface elevation. */
+    --surface-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    --overlay-shadow: 0 12px 40px rgba(0, 0, 0, 0.14);
+    --backdrop: rgba(26, 26, 30, 0.4);
+
+    /* 12px buttons / 14px fields, matching the spec's corner language. */
+    --radius: 0.75rem;
+    --field-radius: 0.875rem;
+  }
+
+  .dark,
+  [data-theme="dark"] {
+    color-scheme: dark;
+
+    --background: #0f0f13;
+    --foreground: #f2f2f4;
+
+    --surface: #17171c;
+    --surface-secondary: #22222a;
+    --surface-tertiary: #2b2b33;
+    --surface-hover: #22222a;
+
+    --overlay: #17171c;
+
+    --muted: #9a9aa6;
+
+    --border: #26262d;
+    --separator: #26262d;
+    --frame-border: #2b2b33;
+
+    /* Accent itself is unchanged across modes; only its soft tints shift. */
+    --accent-soft: rgba(16, 185, 129, 0.18);
+    --accent-soft-hover: rgba(16, 185, 129, 0.24);
+    --accent-soft-foreground: #34d399;
+
+    --link: #34d399;
+
+    --default: #22222a;
+    --default-hover: #2b2b33;
+    --default-soft: #22222a;
+    --default-soft-hover: #2b2b33;
+
+    --danger: #f87171;
+    --danger-foreground: #17171c;
+    --danger-hover: #ef4444;
+    --danger-soft: rgba(248, 113, 113, 0.14);
+    --danger-soft-foreground: #f87171;
+    --danger-soft-hover: rgba(248, 113, 113, 0.2);
+
+    --field-border-hover: #2b2b33;
+    --segment: var(--surface);
+
+    --surface-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    --overlay-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    --backdrop: rgba(0, 0, 0, 0.6);
+  }
+
+  html {
+    font-family: var(--font-sans);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  /* Latin runs inside Hebrew copy — URLs, sizes, shortcuts. */
+  .ltr-run {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+}
