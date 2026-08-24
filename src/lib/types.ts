@@ -117,4 +117,9 @@ export type LinkErrorCode =
   | "private"
   | "unavailable"
   | "geo_blocked"
+  | "age_restricted"
+  /** YouTube demanded a human check — usually fixed by cookies. */
+  | "bot_check"
+  /** yt-dlp is behind YouTube's current player. */
+  | "outdated"
   | "unknown";

@@ -37,6 +37,7 @@ export function ConverterForm({ onSubmitted }: Props) {
   const [url, setUrl] = useState("");
   const [video, setVideo] = useState<VideoMeta | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkDetail, setLinkDetail] = useState<string | null>(null);
   const [probing, setProbing] = useState(false);
 
   const [format, setFormat] = useState<Format>("mp4");
@@ -72,6 +73,7 @@ export function ConverterForm({ onSubmitted }: Props) {
     if (!url.trim()) {
       setVideo(null);
       setLinkError(null);
+      setLinkDetail(null);
       setProbing(false);
       return;
     }
@@ -85,19 +87,26 @@ export function ConverterForm({ onSubmitted }: Props) {
         const res = await fetch(`/api/video?url=${encodeURIComponent(url.trim())}`, {
           signal: controller.signal,
         });
-        const data = (await res.json()) as { video?: VideoMeta; error?: string };
+        const data = (await res.json()) as {
+          video?: VideoMeta;
+          error?: string;
+          detail?: string;
+        };
         if (controller.signal.aborted) return;
         if (!res.ok || !data.video) {
           setVideo(null);
           setLinkError(data.error ?? "לא הצלחנו לקרוא את הסרטון.");
+          setLinkDetail(data.detail ?? null);
         } else {
           setVideo(data.video);
           setLinkError(null);
+          setLinkDetail(null);
         }
       } catch {
         if (!controller.signal.aborted) {
           setVideo(null);
           setLinkError("לא הצלחנו לקרוא את הסרטון. בדקו את החיבור ונסו שוב.");
+          setLinkDetail(null);
         }
       } finally {
         if (!controller.signal.aborted) setProbing(false);
@@ -174,7 +183,22 @@ export function ConverterForm({ onSubmitted }: Props) {
       />
 
       {linkError ? (
-        <span className="-mt-2 text-xs text-danger-soft-foreground">{linkError}</span>
+        <div className="-mt-2 flex flex-col gap-1.5">
+          <span className="text-xs text-danger-soft-foreground">{linkError}</span>
+
+          {/* yt-dlp's own words. Hidden by default, but one click away — the
+              friendly sentence is a guess, this line is the fact. */}
+          {linkDetail ? (
+            <details>
+              <summary className="cursor-pointer list-none text-[11px] text-muted hover:text-foreground">
+                הפרטים המלאים מ-yt-dlp
+              </summary>
+              <code className="ltr-run mt-1.5 block overflow-x-auto rounded-lg border border-border bg-surface-secondary px-3 py-2 text-[11px] text-muted">
+                {linkDetail}
+              </code>
+            </details>
+          ) : null}
+        </div>
       ) : null}
 
       {video ? (

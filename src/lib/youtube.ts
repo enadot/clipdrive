@@ -12,10 +12,28 @@ import {
 
 const YT_DLP = process.env.YT_DLP_PATH ?? "yt-dlp";
 
+/**
+ * YouTube increasingly answers datacenter and even ordinary home IPs with a
+ * "confirm you're not a bot" wall. Borrowing the cookies of a browser that is
+ * already signed in is the supported way through it.
+ *
+ * Set YT_DLP_COOKIES_FROM_BROWSER=chrome (or firefox, edge, brave…).
+ */
+function authArgs(): string[] {
+  const browser = process.env.YT_DLP_COOKIES_FROM_BROWSER?.trim();
+  return browser ? ["--cookies-from-browser", browser] : [];
+}
+
 export class YoutubeError extends Error {
   constructor(
     readonly code: LinkErrorCode,
     message: string,
+    /**
+     * yt-dlp's own last stderr line. The friendly Hebrew sentence is for the
+     * user; this is the line that actually says what went wrong, and throwing
+     * it away is what turns a one-minute fix into an afternoon.
+     */
+    readonly detail?: string,
   ) {
     super(message);
     this.name = "YoutubeError";
@@ -28,6 +46,12 @@ export const LINK_ERROR_TEXT: Record<LinkErrorCode, string> = {
   private: "הסרטון פרטי — אין גישה אליו דרך הלינק הזה.",
   unavailable: "הסרטון לא זמין — ייתכן שהוסר או שהכתובת שגויה.",
   geo_blocked: "הסרטון חסום באזור שלכם.",
+  age_restricted:
+    "הסרטון מוגבל בגיל. צריך קובץ cookies מהדפדפן — ראו YT_DLP_COOKIES_FROM_BROWSER ב-.env.example.",
+  bot_check:
+    "יוטיוב ביקש אימות שאתם לא בוט. הריצו yt-dlp -U, ואם זה חוזר — הגדירו YT_DLP_COOKIES_FROM_BROWSER=chrome ב-.env.",
+  outdated:
+    "גרסת yt-dlp לא מסתדרת עם יוטיוב. עדכנו: yt-dlp -U (או pip install -U yt-dlp).",
   unknown: "לא הצלחנו לקרוא את הסרטון. בדקו את הכתובת ונסו שוב.",
 };
 
@@ -87,10 +111,44 @@ function extractVideoId(url: URL): string | null {
 
 function classifyError(stderr: string): LinkErrorCode {
   const s = stderr.toLowerCase();
+
+  // Checked before "private": the bot wall also mentions signing in, and it is
+  // by far the most common reason a perfectly public video fails today.
+  if (
+    s.includes("sign in to confirm you're not a bot") ||
+    s.includes("sign in to confirm that you're not a bot") ||
+    s.includes("confirm you're not a bot")
+  ) {
+    return "bot_check";
+  }
+  if (s.includes("confirm your age") || s.includes("age-restricted")) {
+    return "age_restricted";
+  }
+
+  // YouTube changes its player constantly; an out-of-date yt-dlp fails in a
+  // handful of recognisable ways that all mean "update me".
+  if (
+    s.includes("nsig extraction failed") ||
+    s.includes("unable to extract yt initial data") ||
+    s.includes("unable to extract player") ||
+    s.includes("precondition check failed") ||
+    s.includes("failed to extract any player response") ||
+    s.includes("player response") ||
+    s.includes("update to the latest version")
+  ) {
+    return "outdated";
+  }
+
   if (s.includes("private video") || s.includes("sign in if you've been granted")) {
     return "private";
   }
-  if (s.includes("blocked it in your country") || s.includes("not available in your country")) {
+  if (
+    s.includes("blocked it in your country") ||
+    s.includes("not available in your country") ||
+    // yt-dlp's actual wording for a geo-restricted upload.
+    s.includes("available in your country") ||
+    s.includes("not available from your location")
+  ) {
     return "geo_blocked";
   }
   if (
@@ -105,6 +163,27 @@ function classifyError(stderr: string): LinkErrorCode {
     return "not_youtube";
   }
   return "unknown";
+}
+
+/** Test seam for the classifier. */
+export const __classify = classifyError;
+
+/** yt-dlp's most informative line — the one starting with ERROR, if present. */
+function lastYtDlpError(stderr: string): string {
+  const lines = stderr.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+  return lines.reverse().find((l) => l.startsWith("ERROR")) ?? lines[0] ?? "";
+}
+
+/**
+ * Builds the error and — crucially — prints yt-dlp's own words to the server
+ * console, so the terminal running `npm run dev` always shows the real cause
+ * even when the browser only gets the friendly sentence.
+ */
+function ytDlpFailure(stderr: string): YoutubeError {
+  const code = classifyError(stderr);
+  const detail = lastYtDlpError(stderr);
+  console.error(`[clipdrive] yt-dlp failed (${code}): ${detail || stderr.trim()}`);
+  return new YoutubeError(code, LINK_ERROR_TEXT[code], detail);
 }
 
 interface RunResult {
@@ -201,15 +280,13 @@ export async function fetchMetadata(
       "--no-warnings",
       "--socket-timeout",
       "20",
+      ...authArgs(),
       canonical,
     ],
     { signal },
   );
 
-  if (code !== 0) {
-    const errCode = classifyError(stderr);
-    throw new YoutubeError(errCode, LINK_ERROR_TEXT[errCode]);
-  }
+  if (code !== 0) throw ytDlpFailure(stderr);
 
   let data: DumpJson;
   try {
@@ -345,6 +422,7 @@ export async function download(
     path.join(dir, "source.%(ext)s"),
     "--progress-template",
     `${PROGRESS_PREFIX} %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s %(progress.speed)s %(progress.eta)s`,
+    ...authArgs(),
   ];
 
   if (!audioOnly) args.push("--merge-output-format", "mkv");
@@ -374,10 +452,7 @@ export async function download(
 
   if (signal?.aborted) throw new Error("canceled");
 
-  if (code !== 0) {
-    const errCode = classifyError(stderr);
-    throw new YoutubeError(errCode, LINK_ERROR_TEXT[errCode]);
-  }
+  if (code !== 0) throw ytDlpFailure(stderr);
 
   const file = await findSource(dir);
   if (!file) throw new YoutubeError("unknown", "ההורדה הסתיימה אך הקובץ לא נמצא.");

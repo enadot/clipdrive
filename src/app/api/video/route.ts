@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     if (err instanceof YoutubeError) {
       return NextResponse.json(
-        { error: err.message, code: err.code },
+        { error: err.message, code: err.code, detail: err.detail },
         { status: 400 },
       );
     }
