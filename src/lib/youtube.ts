@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -22,6 +22,84 @@ const YT_DLP = process.env.YT_DLP_PATH ?? "yt-dlp";
 function authArgs(): string[] {
   const browser = process.env.YT_DLP_COOKIES_FROM_BROWSER?.trim();
   return browser ? ["--cookies-from-browser", browser] : [];
+}
+
+/**
+ * YouTube serves its player through several "innertube" clients and blocks them
+ * selectively — a 403 usually means the client yt-dlp picked is refused right
+ * now, not that the video is unavailable. Trying a different one almost always
+ * gets through, so the app does that itself instead of surfacing a dead end.
+ *
+ * Names verified against yt-dlp's INNERTUBE_CLIENTS. Ordered by how reliably
+ * they answer when the default is refused.
+ */
+const FALLBACK_CLIENTS = ["tv", "android", "ios", "web_safari", "mweb"] as const;
+
+/** An explicit override always wins and disables the automatic sweep. */
+function manualExtractorArgs(): string | null {
+  return process.env.YT_DLP_EXTRACTOR_ARGS?.trim() || null;
+}
+
+function extractorArgs(client?: string): string[] {
+  const manual = manualExtractorArgs();
+  if (manual) return ["--extractor-args", manual];
+  return client ? ["--extractor-args", `youtube:player_client=${client}`] : [];
+}
+
+/** Failures that mean "this client was refused", as opposed to a real problem. */
+function isClientRefusal(stderr: string): boolean {
+  const s = stderr.toLowerCase();
+  return (
+    s.includes("403: forbidden") ||
+    s.includes("unable to download video data") ||
+    s.includes("failed to extract any player response") ||
+    s.includes("requested format is not available") ||
+    s.includes("the following content is not available on this app")
+  );
+}
+
+/**
+ * Runs yt-dlp, and on a client refusal walks the fallback list before giving
+ * up. `beforeRetry` lets the download stage clear partial files, since a
+ * different client can pick a different format.
+ */
+async function runWithClientFallback(
+  buildArgs: (client?: string) => string[],
+  opts: {
+    onStdoutLine?: (line: string) => void;
+    signal?: AbortSignal;
+    beforeRetry?: () => Promise<void>;
+  } = {},
+): Promise<RunResult> {
+  const attempts: (string | undefined)[] = manualExtractorArgs()
+    ? [undefined]
+    : [undefined, ...FALLBACK_CLIENTS];
+
+  let last: RunResult | null = null;
+
+  for (const client of attempts) {
+    if (client) {
+      await opts.beforeRetry?.();
+      console.warn(`[clipdrive] retrying yt-dlp with player_client=${client}`);
+    }
+
+    const result = await run(buildArgs(client), opts);
+
+    if (result.code === 0) {
+      if (client) {
+        console.warn(`[clipdrive] player_client=${client} worked`);
+      }
+      return result;
+    }
+
+    last = result;
+    if (opts.signal?.aborted) break;
+    // A genuine failure (private, removed, geo-blocked) won't be fixed by
+    // another client — stop rather than burn five more requests on it.
+    if (!isClientRefusal(result.stderr)) break;
+  }
+
+  return last!;
 }
 
 export class YoutubeError extends Error {
@@ -52,6 +130,8 @@ export const LINK_ERROR_TEXT: Record<LinkErrorCode, string> = {
     "יוטיוב ביקש אימות שאתם לא בוט. הריצו yt-dlp -U, ואם זה חוזר — הגדירו YT_DLP_COOKIES_FROM_BROWSER=chrome ב-.env.",
   outdated:
     "גרסת yt-dlp לא מסתדרת עם יוטיוב. עדכנו: yt-dlp -U (או pip install -U yt-dlp).",
+  blocked:
+    "יוטיוב חסם את כל שיטות הגישה שניסינו. עדכנו את yt-dlp (yt-dlp -U); אם זה לא עוזר, הגדירו YT_DLP_COOKIES_FROM_BROWSER=chrome ב-.env.",
   unknown: "לא הצלחנו לקרוא את הסרטון. בדקו את הכתובת ונסו שוב.",
 };
 
@@ -125,6 +205,16 @@ function classifyError(stderr: string): LinkErrorCode {
     return "age_restricted";
   }
 
+  // Reached only after every fallback client was refused, so this really is a
+  // block rather than a stale extractor.
+  if (
+    s.includes("403: forbidden") ||
+    s.includes("unable to download video data") ||
+    s.includes("the following content is not available on this app")
+  ) {
+    return "blocked";
+  }
+
   // YouTube changes its player constantly; an out-of-date yt-dlp fails in a
   // handful of recognisable ways that all mean "update me".
   if (
@@ -164,9 +254,6 @@ function classifyError(stderr: string): LinkErrorCode {
   }
   return "unknown";
 }
-
-/** Test seam for the classifier. */
-export const __classify = classifyError;
 
 /** yt-dlp's most informative line — the one starting with ERROR, if present. */
 function lastYtDlpError(stderr: string): string {
@@ -273,14 +360,15 @@ export async function fetchMetadata(
     throw new YoutubeError("not_youtube", LINK_ERROR_TEXT.not_youtube);
   }
 
-  const { stdout, stderr, code } = await run(
-    [
+  const { stdout, stderr, code } = await runWithClientFallback(
+    (client) => [
       "--dump-single-json",
       "--no-playlist",
       "--no-warnings",
       "--socket-timeout",
       "20",
       ...authArgs(),
+      ...extractorArgs(client),
       canonical,
     ],
     { signal },
@@ -405,7 +493,7 @@ export async function download(
     : `bestvideo[height<=${height}][vcodec^=avc1]+bestaudio[acodec^=mp4a]/` +
       `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best`;
 
-  const args = [
+  const buildArgs = (client?: string) => [
     "--no-playlist",
     "--no-warnings",
     "--newline",
@@ -423,14 +511,16 @@ export async function download(
     "--progress-template",
     `${PROGRESS_PREFIX} %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s %(progress.speed)s %(progress.eta)s`,
     ...authArgs(),
+    ...extractorArgs(client),
+    ...(audioOnly ? [] : ["--merge-output-format", "mkv"]),
+    url,
   ];
 
-  if (!audioOnly) args.push("--merge-output-format", "mkv");
-
-  args.push(url);
-
-  const { stderr, code } = await run(args, {
+  const { stderr, code } = await runWithClientFallback(buildArgs, {
     signal,
+    // A different client may choose a different format, so a half-finished
+    // download from the previous attempt must not be resumed into.
+    beforeRetry: () => clearPartials(dir),
     onStdoutLine: (line) => {
       if (!line.startsWith(PROGRESS_PREFIX)) return;
       const [, downloaded, total, totalEst, speed, eta] = line.trim().split(/\s+/);
@@ -457,6 +547,17 @@ export async function download(
   const file = await findSource(dir);
   if (!file) throw new YoutubeError("unknown", "ההורדה הסתיימה אך הקובץ לא נמצא.");
   return file;
+}
+
+/** Removes any half-downloaded stage-1 files before a fresh attempt. */
+async function clearPartials(dir: string): Promise<void> {
+  if (!existsSync(dir)) return;
+  const entries = await readdir(dir);
+  await Promise.all(
+    entries
+      .filter((name) => name.startsWith("source."))
+      .map((name) => rm(path.join(dir, name), { force: true }).catch(() => {})),
+  );
 }
 
 /**

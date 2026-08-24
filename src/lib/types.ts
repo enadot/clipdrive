@@ -122,4 +122,6 @@ export type LinkErrorCode =
   | "bot_check"
   /** yt-dlp is behind YouTube's current player. */
   | "outdated"
+  /** YouTube refused every player client we tried. */
+  | "blocked"
   | "unknown";
