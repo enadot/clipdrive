@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+@font-face{font-family:'TelAviv';src:url('uploads/telaviv-modernistregular.woff2') format('woff2');font-weight:400}
+@font-face{font-family:'TelAviv';src:url('uploads/telaviv-modernistbold.woff2') format('woff2');font-weight:700}
+body{margin:0;background:#e9e9ee;font-family:'TelAviv',sans-serif}
+a{color:#0d9f6e;text-decoration:none}a:hover{color:#0b8a5f}
+@keyframes shimmer{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</helmet>
+<section style="padding:48px;display:flex;flex-direction:column;gap:36px" dir="rtl">
+<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+<div style="display:flex;flex-direction:column;gap:4px">
+<div style="font-size:24px;font-weight:700;color:#1a1a1e">ClipDrive v2 — אחרי מחקר דפוסים</div>
+<div style="font-size:13px;color:#73737e">Tel Aviv Modernist · תצוגה מקדימה לפני המרה · ETA חי · פעולות על כרטיס · מובייל 360</div>
+</div>
+<button onClick="{{ toggleTheme }}" style="border:1px solid #c9c9d2;background:#fff;border-radius:99px;padding:8px 18px;font-family:inherit;font-size:13px;font-weight:700;color:#1a1a1e;cursor:pointer" style-hover="background:#f1f1f3">{{ themeLabel }}</button>
+</div>
+
+<div style="--bg:#f7f7f8;--card:#ffffff;--bd:#e5e5e8;--tx:#1a1a1e;--sub:#73737e;--mut:#f1f1f3;--acc:#10b981;--accD:#0d9f6e;--accSoft:rgba(16,185,129,.12);--accBd:rgba(16,185,129,.4);--link:#0d9f6e;--err:#dc2626;--errSoft:rgba(220,38,38,.1);--frameBd:#d8d8de;--sh:0 8px 30px rgba(0,0,0,.08)">
+<div style="{{ themeStyle }}">
+<div style="display:flex;flex-direction:column;gap:36px">
+
+<!-- 2a: main, link pasted -->
+<div id="2a" style="display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;gap:8px;align-items:center"><span style="background:#1a1a1e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px">2a</span><span style="font-size:13px;color:#55555e">מסך ראשי — לינק הודבק: תצוגה מקדימה לפני המרה (מוריד אי-ודאות)</span></div>
+<div dir="rtl" style="width:1120px;height:720px;background:var(--bg);border:1px solid var(--frameBd);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--sh)">
+<div style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--bd);background:var(--card);flex-shrink:0">
+<div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:8px;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">C</div><span style="font-weight:700;color:var(--tx);font-size:15px">ClipDrive</span></div>
+<div style="display:flex;align-items:center;gap:12px"><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);border:1px solid var(--bd);border-radius:99px;padding:4px 12px"><span style="width:6px;height:6px;border-radius:99px;background:var(--acc)"></span>מחובר לדרייב</span><button onClick="{{ toggleTheme }}" style="width:28px;height:28px;border-radius:99px;border:1px solid var(--bd);background:var(--mut);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--sub);cursor:pointer">{{ themeIcon }}</button></div>
+</div>
+<div style="flex:1;display:flex;gap:24px;padding:28px;min-height:0">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;max-width:640px;margin:0 auto">
+<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--accBd);border-radius:14px;padding:0 6px 0 14px;height:54px;background:var(--card);box-shadow:0 0 0 3px var(--accSoft)">
+<span style="flex:1;font-size:15px;color:var(--tx);direction:ltr;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">https://youtu.be/dQw4-mzX9c</span>
+<button style="border:none;background:var(--mut);color:var(--sub);font-family:inherit;font-size:12px;font-weight:700;border-radius:8px;padding:8px 12px;cursor:pointer">✕ ניקוי</button>
+</div>
+<div style="background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;gap:14px;align-items:center">
+<div style="width:148px;height:83px;border-radius:10px;background:repeating-linear-gradient(45deg,var(--mut),var(--mut) 6px,var(--bd) 6px,var(--bd) 12px);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:10px;color:var(--sub);flex-shrink:0;position:relative">thumbnail<span style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.75);color:#fff;font-size:10px;padding:1px 6px;border-radius:4px;direction:ltr">12:08</span></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<span style="font-size:16px;font-weight:700;color:var(--tx)">מדריך צילום לילה — כל הסודות</span>
+<span style="font-size:12px;color:var(--sub)">ערוץ הצילום · 12:08 · זוהה אוטומטית עם ההדבקה</span>
+</div>
+</div>
+<div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap">
+<div style="display:flex;flex-direction:column;gap:8px">
+<label style="font-size:12px;font-weight:700;color:var(--sub)">פורמט</label>
+<div style="display:flex;background:var(--mut);border-radius:10px;padding:3px;gap:2px">
+<span style="padding:7px 22px;border-radius:8px;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.12);font-size:13px;font-weight:700;color:var(--tx)">MP4</span>
+<span style="padding:7px 22px;border-radius:8px;font-size:13px;color:var(--sub)">MP3</span>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<label style="font-size:12px;font-weight:700;color:var(--sub)">איכות · משפיעה על גודל הקובץ</label>
+<div style="display:flex;gap:6px">
+<span style="border:1px solid var(--bd);border-radius:99px;padding:7px 14px;font-size:12px;color:var(--sub)">720p</span>
+<span style="border:1px solid var(--accBd);background:var(--accSoft);border-radius:99px;padding:7px 14px;font-size:12px;font-weight:700;color:var(--link)">1080p · ‏~890MB</span>
+<span style="border:1px solid var(--bd);border-radius:99px;padding:7px 14px;font-size:12px;color:var(--sub)">1440p</span>
+<span style="border:1px solid var(--bd);border-radius:99px;padding:7px 14px;font-size:12px;color:var(--sub)">4K</span>
+</div>
+</div>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;border:1px solid var(--bd);border-radius:12px;padding:10px 14px;background:var(--bg)">
+<div style="display:flex;align-items:center;gap:10px"><span style="width:30px;height:30px;border-radius:8px;background:var(--accSoft);color:var(--link);display:flex;align-items:center;justify-content:center;font-size:14px">▣</span><div style="display:flex;flex-direction:column"><span style="font-size:14px;font-weight:700;color:var(--tx)">מוזיקה / קליפים</span><span style="font-size:11px;color:var(--sub)">התיקייה האחרונה שנבחרה</span></div></div>
+<a href="#2c" style="font-size:13px;font-weight:700;color:var(--link)">החלפה</a>
+</div>
+<button style="height:54px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-family:inherit;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" style-hover="background:var(--accD)">המר ושמור בדרייב<span style="font-size:12px;opacity:.8;font-weight:400">· ‏Enter ↵</span></button>
+</div>
+<span style="font-size:12px;color:var(--sub);text-align:center">טיפ: ‏Ctrl+V בכל מקום במסך מדביק ומזהה את הלינק אוטומטית</span>
+</div>
+<div style="width:330px;display:flex;flex-direction:column;gap:12px;flex-shrink:0">
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;font-weight:700;color:var(--tx)">משימות</span><span style="font-size:12px;color:var(--sub)">1 פעילה</span></div>
+<div style="background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;gap:10px;align-items:center">
+<div style="width:72px;height:40px;border-radius:8px;background:repeating-linear-gradient(45deg,var(--mut),var(--mut) 6px,var(--bd) 6px,var(--bd) 12px);flex-shrink:0"></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">אלבום מלא — לייב 2025</span><span style="font-size:11px;color:var(--sub)">MP3 · 320kbps</span></div>
+<button style="border:none;background:transparent;color:var(--sub);font-size:14px;cursor:pointer;padding:4px">✕</button>
+</div>
+<div style="display:flex;gap:6px"><div style="flex:1;height:5px;border-radius:3px;background:var(--acc)"></div><div style="flex:1;height:5px;border-radius:3px;background:var(--mut);display:flex;overflow:hidden;position:relative"><div style="width:88%;background:var(--acc);border-radius:3px;position:relative;overflow:hidden"><div style="position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);animation:shimmer 1.6s infinite"></div></div></div><div style="flex:1;height:5px;border-radius:3px;background:var(--mut)"></div></div>
+<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--sub)"><span style="color:var(--link);font-weight:700">המרה · 88%</span><span>נותרו ‏~20 שנ׳</span></div>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px"><span style="font-size:13px;font-weight:700;color:var(--tx)">היום</span></div>
+<div style="background:var(--card);border:1px solid var(--bd);border-radius:14px;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--bd)"><span style="color:var(--link);font-size:13px">✓</span><span style="flex:1;font-size:13px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">שיר חדש — קליפ רשמי</span><a href="#2b" style="font-size:11px;flex-shrink:0">בדרייב ↗</a></div>
+<div style="display:flex;align-items:center;gap:10px;padding:11px 14px"><span style="color:var(--err);font-size:13px;font-weight:700">!</span><span style="flex:1;font-size:13px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">וובינר — הקלטה</span><a href="#2b" style="font-size:11px;flex-shrink:0">ניסיון חוזר</a></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 2b task card anatomy -->
+<div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+<div id="2b" style="display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;gap:8px;align-items:center"><span style="background:#1a1a1e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px">2b</span><span style="font-size:13px;color:#55555e">כרטיס משימה v2 — פעולות בהובר, ETA, שגיאה ניתנת לפעולה</span></div>
+<div dir="rtl" style="width:480px;background:var(--bg);border:1px solid var(--frameBd);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--sh)">
+<div style="background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;gap:10px;align-items:center">
+<div style="width:80px;height:45px;border-radius:8px;background:repeating-linear-gradient(45deg,var(--mut),var(--mut) 6px,var(--bd) 6px,var(--bd) 12px);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:9px;color:var(--sub);flex-shrink:0">thumb</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:700;color:var(--tx)">מדריך צילום לילה</span><span style="font-size:11px;color:var(--sub)">12:08 · MP4 · 1080p · ‏~890MB</span></div>
+<div style="display:flex;gap:4px"><button style="width:28px;height:28px;border:1px solid var(--bd);background:var(--mut);border-radius:8px;color:var(--sub);font-size:12px;cursor:pointer">⏸</button><button style="width:28px;height:28px;border:1px solid var(--bd);background:var(--mut);border-radius:8px;color:var(--sub);font-size:12px;cursor:pointer">✕</button></div>
+</div>
+<div style="display:flex;gap:6px"><div style="flex:1;height:5px;border-radius:3px;background:var(--mut);display:flex"><div style="width:62%;background:var(--acc);border-radius:3px;position:relative;overflow:hidden"><div style="position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);animation:shimmer 1.6s infinite"></div></div></div><div style="flex:1;height:5px;border-radius:3px;background:var(--mut)"></div><div style="flex:1;height:5px;border-radius:3px;background:var(--mut)"></div></div>
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub)"><span style="color:var(--link);font-weight:700">הורדה · 62% · ‏4.2MB/s</span><span>נותרו ‏~40 שנ׳</span></div>
+</div>
+<div style="background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;gap:10px;align-items:center">
+<div style="width:80px;height:45px;border-radius:8px;background:repeating-linear-gradient(45deg,var(--mut),var(--mut) 6px,var(--bd) 6px,var(--bd) 12px);flex-shrink:0"></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:700;color:var(--tx)">ראיון מלא — פרק 12</span><span style="font-size:11px;color:var(--sub)">44:10 · MP3 · 61MB</span></div>
+</div>
+<div style="display:flex;gap:6px"><div style="flex:1;height:5px;border-radius:3px;background:var(--acc)"></div><div style="flex:1;height:5px;border-radius:3px;background:var(--acc)"></div><div style="flex:1;height:5px;border-radius:3px;background:var(--mut);display:flex"><div style="width:31%;background:var(--acc);border-radius:3px"></div></div></div>
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub)"><span style="color:var(--link);font-weight:700">העלאה לדרייב · 31%</span><span>אל "מוזיקה / קליפים"</span></div>
+</div>
+<div style="background:var(--card);border:1px solid var(--accBd);border-radius:14px;padding:14px;display:flex;align-items:center;gap:10px">
+<span style="width:28px;height:28px;border-radius:99px;background:var(--accSoft);color:var(--link);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">✓</span>
+<div style="flex:1;display:flex;flex-direction:column;gap:1px"><span style="font-size:14px;font-weight:700;color:var(--tx)">שיר חדש — קליפ רשמי</span><span style="font-size:11px;color:var(--sub)">MP3 · 8.4MB · הושלם ב-41 שנ׳</span></div>
+<a href="#2a" style="font-size:12px;font-weight:700;color:var(--link);border:1px solid var(--accBd);border-radius:8px;padding:6px 12px">פתיחה בדרייב ↗</a>
+</div>
+<div style="background:var(--card);border:1px solid var(--err);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="width:28px;height:28px;border-radius:99px;background:var(--errSoft);color:var(--err);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">!</span>
+<div style="flex:1;display:flex;flex-direction:column;gap:1px"><span style="font-size:14px;font-weight:700;color:var(--tx)">וובינר — הקלטה</span><span style="font-size:11px;color:var(--err)">ההמרה נכשלה · ההורדה נשמרה — ניסיון חוזר ימשיך משלב 2</span></div>
+</div>
+<div style="display:flex;gap:6px"><div style="flex:1;height:5px;border-radius:3px;background:var(--acc)"></div><div style="flex:1;height:5px;border-radius:3px;background:var(--err)"></div><div style="flex:1;height:5px;border-radius:3px;background:var(--mut)"></div></div>
+<div style="display:flex;gap:8px"><button style="flex:1;border:none;background:var(--acc);color:#fff;font-family:inherit;font-size:12px;font-weight:700;border-radius:8px;padding:8px;cursor:pointer" style-hover="background:var(--accD)">ניסיון חוזר משלב ההמרה</button><button style="border:1px solid var(--bd);background:var(--mut);color:var(--sub);font-family:inherit;font-size:12px;border-radius:8px;padding:8px 14px;cursor:pointer">הסרה</button></div>
+</div>
+<div style="background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;display:flex;align-items:center;gap:10px;opacity:.75">
+<span style="width:28px;height:28px;border-radius:99px;background:var(--mut);color:var(--sub);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;animation:pulse 1.4s infinite">…</span>
+<div style="flex:1;display:flex;flex-direction:column;gap:1px"><span style="font-size:14px;font-weight:700;color:var(--tx)">בתור</span><span style="font-size:11px;color:var(--sub)">ממתין לסיום המשימה הפעילה · מקום 2 בתור</span></div>
+<button style="border:none;background:transparent;color:var(--sub);font-size:14px;cursor:pointer">✕</button>
+</div>
+</div>
+</div>
+
+<!-- 2c folder picker v2 -->
+<div id="2c" style="display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;gap:8px;align-items:center"><span style="background:#1a1a1e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px">2c</span><span style="font-size:13px;color:#55555e">בורר תיקייה v2 — "אחרונות" למעלה, יצירה inline</span></div>
+<div dir="rtl" style="width:400px;background:var(--card);border:1px solid var(--frameBd);border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.14);display:flex;flex-direction:column">
+<div style="padding:18px 20px 12px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid var(--bd)">
+<span style="font-size:15px;font-weight:700;color:var(--tx)">בחירת תיקיית יעד</span>
+<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--bd);border-radius:10px;padding:8px 12px;background:var(--bg);font-size:13px;color:var(--sub)">⌕ חיפוש תיקייה…</div>
+</div>
+<div style="display:flex;flex-direction:column;padding:8px;gap:2px">
+<span style="font-size:11px;font-weight:700;color:var(--sub);padding:6px 12px 2px">אחרונות</span>
+<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--accSoft);border:1px solid var(--accBd)"><span style="color:var(--link)">▣</span><span style="flex:1;font-size:14px;font-weight:700;color:var(--tx)">מוזיקה / קליפים</span><span style="font-size:11px;color:var(--sub)">לפני שעה</span><span style="color:var(--link);font-weight:700">✓</span></div>
+<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px" style-hover="background:var(--mut)"><span style="color:var(--sub)">▣</span><span style="flex:1;font-size:14px;color:var(--tx)">פודקאסטים</span><span style="font-size:11px;color:var(--sub)">אתמול</span></div>
+<span style="font-size:11px;font-weight:700;color:var(--sub);padding:10px 12px 2px">כל התיקיות · ClipDrive</span>
+<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px" style-hover="background:var(--mut)"><span style="color:var(--sub)">▣</span><span style="flex:1;font-size:14px;color:var(--tx)">הרצאות</span><span style="font-size:11px;color:var(--sub)">2 קבצים</span></div>
+<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px" style-hover="background:var(--mut)"><span style="color:var(--sub)">▣</span><span style="flex:1;font-size:14px;color:var(--tx)">גיבויים</span><span style="font-size:11px;color:var(--sub)">31 קבצים</span></div>
+<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-top:4px;border-radius:10px;border:1px dashed var(--accBd);background:var(--accSoft)"><span style="color:var(--link);font-weight:700">+</span><span style="flex:1;font-size:13px;color:var(--tx);border:none;background:transparent">שם תיקייה חדשה…</span><button style="border:none;background:var(--acc);color:#fff;font-family:inherit;font-size:12px;font-weight:700;border-radius:7px;padding:6px 12px;cursor:pointer">יצירה</button></div>
+<span style="font-size:10px;color:var(--sub);padding:4px 12px 2px">תיקיות נוצרות בתוך ClipDrive בלבד (הרשאת drive.file מינימלית)</span>
+</div>
+<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--bd)">
+<button style="border:1px solid var(--bd);background:var(--card);color:var(--tx);font-family:inherit;font-size:13px;font-weight:700;border-radius:10px;padding:9px 18px;cursor:pointer" style-hover="background:var(--mut)">ביטול</button>
+<button style="border:none;background:var(--acc);color:#fff;font-family:inherit;font-size:13px;font-weight:700;border-radius:10px;padding:9px 20px;cursor:pointer" style-hover="background:var(--accD)">בחירה</button>
+</div>
+</div>
+</div>
+
+<!-- 2d mobile -->
+<div id="2d" style="display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;gap:8px;align-items:center"><span style="background:#1a1a1e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px">2d</span><span style="font-size:13px;color:#55555e">מובייל 360 — שיתוף מיוטיוב</span></div>
+<div dir="rtl" style="width:360px;height:720px;background:var(--bg);border:1px solid var(--frameBd);border-radius:24px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--sh)">
+<div style="height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--bd);background:var(--card);flex-shrink:0">
+<div style="display:flex;align-items:center;gap:8px"><div style="width:24px;height:24px;border-radius:7px;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">C</div><span style="font-weight:700;color:var(--tx);font-size:14px">ClipDrive</span></div>
+<button onClick="{{ toggleTheme }}" style="width:28px;height:28px;border-radius:99px;border:1px solid var(--bd);background:var(--mut);color:var(--sub);font-size:12px;cursor:pointer">{{ themeIcon }}</button>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;padding:16px;overflow:hidden">
+<div style="background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;gap:10px;align-items:center">
+<div style="width:96px;height:54px;border-radius:8px;background:repeating-linear-gradient(45deg,var(--mut),var(--mut) 6px,var(--bd) 6px,var(--bd) 12px);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:9px;color:var(--sub);flex-shrink:0">thumb</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:700;color:var(--tx)">מדריך צילום לילה</span><span style="font-size:11px;color:var(--sub)">שותף מיוטיוב · 12:08</span></div>
+</div>
+<div style="display:flex;background:var(--mut);border-radius:10px;padding:3px;gap:2px">
+<span style="flex:1;text-align:center;padding:10px 0;border-radius:8px;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.12);font-size:13px;font-weight:700;color:var(--tx)">MP4</span>
+<span style="flex:1;text-align:center;padding:10px 0;border-radius:8px;font-size:13px;color:var(--sub)">MP3</span>
+</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<span style="border:1px solid var(--bd);border-radius:99px;padding:9px 14px;font-size:12px;color:var(--sub)">720p</span>
+<span style="border:1px solid var(--accBd);background:var(--accSoft);border-radius:99px;padding:9px 14px;font-size:12px;font-weight:700;color:var(--link)">1080p</span>
+<span style="border:1px solid var(--bd);border-radius:99px;padding:9px 14px;font-size:12px;color:var(--sub)">4K</span>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;border:1px solid var(--bd);border-radius:12px;padding:11px 12px;background:var(--bg)">
+<div style="display:flex;align-items:center;gap:8px"><span style="color:var(--link)">▣</span><span style="font-size:13px;font-weight:700;color:var(--tx)">מוזיקה / קליפים</span></div>
+<a href="#2c" style="font-size:12px;font-weight:700;color:var(--link)">החלפה</a>
+</div>
+<button style="height:52px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer">המר ושמור בדרייב</button>
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;font-weight:700;color:var(--tx)">משימות</span><span style="font-size:11px;color:var(--sub)">1 פעילה</span></div>
+<div style="background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-size:13px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">אלבום מלא — לייב 2025</span><span style="font-size:11px;color:var(--link);font-weight:700;flex-shrink:0">המרה · 88%</span></div>
+<div style="display:flex;gap:5px"><div style="flex:1;height:5px;border-radius:3px;background:var(--acc)"></div><div style="flex:1;height:5px;border-radius:3px;background:var(--mut);display:flex"><div style="width:88%;background:var(--acc);border-radius:3px"></div></div><div style="flex:1;height:5px;border-radius:3px;background:var(--mut)"></div></div>
+</div>
+<div style="background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:8px">
+<span style="color:var(--link);font-size:13px">✓</span><span style="flex:1;font-size:13px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">שיר חדש — קליפ רשמי</span><a href="#2a" style="font-size:11px;flex-shrink:0">בדרייב ↗</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 2e toast + empty input state -->
+<div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+<div id="2e" style="display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;gap:8px;align-items:center"><span style="background:#1a1a1e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px">2e</span><span style="font-size:13px;color:#55555e">מצב ריק ממוקד-הדבקה + טוסט הצלחה + שגיאת לינק inline</span></div>
+<div style="display:flex;flex-direction:column;gap:16px">
+<div dir="rtl" style="width:560px;background:var(--bg);border:1px solid var(--frameBd);border-radius:16px;padding:44px 32px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;box-shadow:var(--sh)">
+<span style="font-size:19px;font-weight:700;color:var(--tx)">מה ממירים היום?</span>
+<div style="width:100%;display:flex;align-items:center;gap:8px;border:1px dashed var(--bd);border-radius:14px;padding:0 14px;height:56px;background:var(--card)">
+<span style="flex:1;font-size:14px;color:var(--sub);text-align:right">הדביקו לינק יוטיוב — או ‏Ctrl+V מכל מקום</span>
+<span style="border:1px solid var(--bd);border-radius:8px;padding:5px 10px;font-size:11px;color:var(--sub);font-family:monospace;direction:ltr">Ctrl+V</span>
+</div>
+<span style="font-size:12px;color:var(--sub)">הקובץ המומר יחכה בתיקיית הדרייב שתבחרו</span>
+</div>
+<div dir="rtl" style="width:560px;background:var(--bg);border:1px solid var(--frameBd);border-radius:16px;padding:24px 32px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--sh)">
+<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--err);border-radius:14px;padding:0 14px;height:52px;background:var(--card)">
+<span style="flex:1;font-size:14px;color:var(--tx);direction:ltr;text-align:left">https://vimeo.com/9982…</span>
+<span style="color:var(--err);font-weight:700">!</span>
+</div>
+<span style="font-size:12px;color:var(--err)">זה לא לינק יוטיוב. בדקו את הכתובת — או שהסרטון פרטי / חסום באזור שלכם.</span>
+</div>
+<div dir="rtl" style="width:560px;display:flex;justify-content:center">
+<div style="display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--accBd);border-radius:14px;padding:12px 16px;box-shadow:0 12px 32px rgba(0,0,0,.16);width:420px">
+<span style="width:30px;height:30px;border-radius:99px;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">✓</span>
+<div style="flex:1;display:flex;flex-direction:column;gap:1px"><span style="font-size:13px;font-weight:700;color:var(--tx)">הקובץ מוכן בדרייב</span><span style="font-size:11px;color:var(--sub)">שיר חדש — קליפ רשמי · MP3 · 8.4MB</span></div>
+<a href="#2a" style="font-size:12px;font-weight:700;color:var(--link)">פתיחה ↗</a>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 2f progress anatomy v2 -->
+<div id="2f" style="display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;gap:8px;align-items:center"><span style="background:#1a1a1e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px">2f</span><span style="font-size:13px;color:#55555e">מד התקדמות v2 — עקרונות מהמחקר</span></div>
+<div dir="rtl" style="width:460px;background:var(--card);border:1px solid var(--frameBd);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px;box-shadow:var(--sh)">
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;gap:6px"><div style="flex:1;height:5px;border-radius:3px;background:var(--acc)"></div><div style="flex:1;height:5px;border-radius:3px;background:var(--mut);display:flex"><div style="width:55%;background:var(--acc);border-radius:3px;position:relative;overflow:hidden"><div style="position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);animation:shimmer 1.6s infinite"></div></div></div><div style="flex:1;height:5px;border-radius:3px;background:var(--mut)"></div></div>
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub)"><span style="color:var(--link);font-weight:700">המרה · 55%</span><span>נותרו ‏~35 שנ׳</span></div>
+</div>
+<div style="font-size:12px;color:var(--sub);line-height:1.8;border-top:1px solid var(--bd);padding-top:12px">
+· דטרמיניסטי תמיד — אחוז + הערכת זמן, לא ספינר.<br>
+· תווית הקשר קצרה ("המרה · 55%") צמודה למד.<br>
+· shimmer רק על המקטע הפעיל — סימן חיים בלי לולאה מטעה.<br>
+· שגיאה צובעת רק את השלב שנכשל; ניסיון חוזר ממשיך משם.<br>
+· מילוי מימין לשמאל, תואם RTL.
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { dark: false };
+  renderVals() {
+    const dark = this.state.dark;
+    return {
+      toggleTheme: () => this.setState(s => ({ dark: !s.dark })),
+      themeLabel: dark ? '☀ מצב בהיר' : '☾ מצב כהה',
+      themeIcon: dark ? '☀' : '☾',
+      themeStyle: dark ? {
+        '--bg': '#0f0f13', '--card': '#17171c', '--bd': '#26262d', '--tx': '#f2f2f4',
+        '--sub': '#9a9aa6', '--mut': '#22222a', '--link': '#34d399',
+        '--accSoft': 'rgba(16,185,129,.18)', '--accBd': 'rgba(16,185,129,.45)',
+        '--err': '#f87171', '--errSoft': 'rgba(248,113,113,.14)',
+        '--frameBd': '#2b2b33', '--sh': '0 8px 30px rgba(0,0,0,.3)'
+      } : {}
+    };
+  }
+}
+</script>
+</body>
+</html>
