@@ -9,6 +9,8 @@ export interface AuthInfo {
   email: string | null;
   /** False when GOOGLE_CLIENT_ID / SECRET are missing from the environment. */
   configured: boolean;
+  /** Exactly what this app sends to Google — paste it into the console. */
+  redirectUri?: string;
 }
 
 export function useAuth() {

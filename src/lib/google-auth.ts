@@ -30,12 +30,24 @@ export function isConfigured(): boolean {
   );
 }
 
-export function redirectUri(): string {
-  const base = process.env.APP_URL ?? "http://localhost:3000";
-  return `${base.replace(/\/$/, "")}/api/auth/google/callback`;
+export const CALLBACK_PATH = "/api/auth/google/callback";
+
+/**
+ * The exact string Google compares against the console's "Authorized redirect
+ * URIs", byte for byte.
+ *
+ * APP_URL wins when set, so a deployment pins its own origin. Otherwise we fall
+ * back to the origin the browser actually used — which keeps the flow working
+ * when Next picks a different port because 3000 was busy, instead of silently
+ * sending a URI nobody registered. Trusting the request origin is safe here
+ * because Google itself only redirects to URIs already on the whitelist.
+ */
+export function redirectUri(requestOrigin?: string): string {
+  const base = process.env.APP_URL ?? requestOrigin ?? "http://localhost:3000";
+  return `${base.replace(/\/$/, "")}${CALLBACK_PATH}`;
 }
 
-export function oauthClient(): OAuth2Client {
+export function oauthClient(requestOrigin?: string): OAuth2Client {
   if (!isConfigured()) {
     throw new Error(
       "חסרים GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET. ראו .env.example.",
@@ -44,12 +56,12 @@ export function oauthClient(): OAuth2Client {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri(),
+    redirectUri(requestOrigin),
   );
 }
 
-export function consentUrl(state: string): string {
-  return oauthClient().generateAuthUrl({
+export function consentUrl(state: string, requestOrigin?: string): string {
+  return oauthClient(requestOrigin).generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     // Force the consent screen so we reliably get a refresh token back — this

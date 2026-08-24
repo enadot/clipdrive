@@ -7,7 +7,13 @@ import { Button, EmptyState } from "@heroui/react";
  * needed and exactly what the permission covers — the spec's whole pitch is
  * trust, so the narrow scope is stated up front rather than buried.
  */
-export function DriveEmptyState({ configured }: { configured: boolean }) {
+export function DriveEmptyState({
+  configured,
+  redirectUri,
+}: {
+  configured: boolean;
+  redirectUri?: string;
+}) {
   return (
     <div className="flex flex-1 items-center justify-center p-6">
       <EmptyState className="flex w-full max-w-[560px] flex-col items-center gap-4 rounded-2xl border border-frame bg-background px-8 py-11 text-center shadow-surface">
@@ -51,6 +57,26 @@ export function DriveEmptyState({ configured }: { configured: boolean }) {
         <span className="text-[11px] text-muted">
           אפשר לנתק בכל רגע — הניתוק מוחק את ההרשאה מהמכשיר הזה.
         </span>
+
+        {/* The one string a redirect_uri_mismatch is always about. */}
+        {redirectUri ? (
+          <details className="w-full text-right">
+            <summary className="cursor-pointer list-none text-[11px] text-muted hover:text-foreground">
+              קיבלתם <span className="ltr-run">redirect_uri_mismatch</span>? לחצו כאן
+            </summary>
+            <div className="mt-2 flex flex-col gap-2 rounded-xl border border-border bg-surface-secondary p-3 text-right">
+              <span className="text-[11px] text-muted">
+                זה בדיוק מה שהאפליקציה שולחת לגוגל. הדביקו אותו תחת{" "}
+                <span className="font-bold text-foreground">Authorized redirect URIs</span>{" "}
+                באותו OAuth client שממנו לקחתם את ה-
+                <span className="ltr-run">CLIENT_ID</span>:
+              </span>
+              <code className="ltr-run block overflow-x-auto rounded-lg bg-surface px-3 py-2 text-xs text-foreground">
+                {redirectUri}
+              </code>
+            </div>
+          </details>
+        ) : null}
       </EmptyState>
     </div>
   );

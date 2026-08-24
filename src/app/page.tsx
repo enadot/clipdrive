@@ -36,7 +36,7 @@ function Home() {
   return (
     <AppShell auth={auth}>
       {auth && !auth.connected ? (
-        <DriveEmptyState configured={auth.configured} />
+        <DriveEmptyState configured={auth.configured} redirectUri={auth.redirectUri} />
       ) : (
         <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col gap-6 p-4 sm:p-7 lg:flex-row lg:gap-6">
           <ConverterForm onSubmitted={onSubmitted} />

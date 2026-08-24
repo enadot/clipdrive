@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 import { consentUrl, isConfigured } from "@/lib/google-auth";
 
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Kicks off the OAuth dance from the "חיבור לגוגל דרייב" button. */
-export async function GET() {
+export async function GET(request: NextRequest) {
   if (!isConfigured()) {
     return NextResponse.json(
       { error: "חסרה הגדרת OAuth. ראו .env.example." },
@@ -28,5 +28,5 @@ export async function GET() {
     secure: process.env.NODE_ENV === "production",
   });
 
-  return NextResponse.redirect(consentUrl(state));
+  return NextResponse.redirect(consentUrl(state, request.nextUrl.origin));
 }

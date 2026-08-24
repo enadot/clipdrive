@@ -26,7 +26,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const client = oauthClient();
+    // Must be the same redirect_uri the authorize request used, or Google
+    // rejects the exchange.
+    const client = oauthClient(request.nextUrl.origin);
     const { tokens } = await client.getToken(code);
     client.setCredentials(tokens);
     await writeToken({ ...tokens, email: await fetchEmail(client) });
