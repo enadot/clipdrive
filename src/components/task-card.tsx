@@ -5,7 +5,7 @@ import { Button, Card } from "@heroui/react";
 import { ProgressMeter } from "./progress-meter";
 import { Thumbnail } from "./thumbnail";
 import { bytes, duration as formatDuration, took } from "@/lib/format";
-import { STAGES, type Job, type Stage } from "@/lib/types";
+import { downloadUrl, stagesFor, type Job, type Stage } from "@/lib/types";
 
 interface Props {
   job: Job;
@@ -82,7 +82,7 @@ function RunningCard({ job, onAct, onRemove }: Props) {
 
       <ProgressMeter job={job} />
 
-      {job.stage === "upload" ? (
+      {job.stage === "upload" && job.folderName ? (
         <span className="-mt-1 text-[11px] text-muted">אל &quot;{job.folderName}&quot;</span>
       ) : null}
     </Card>
@@ -90,44 +90,66 @@ function RunningCard({ job, onAct, onRemove }: Props) {
 }
 
 function DoneCard({ job, onRemove }: { job: Job; onRemove: (id: string) => void }) {
+  const local = job.destination === "download";
+
   return (
-    <Card className="flex flex-row items-center gap-2.5 rounded-2xl border border-accent-soft-foreground/40 bg-surface p-3.5 shadow-none">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm text-accent-soft-foreground">
-        ✓
-      </span>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-px">
-        <span className="truncate text-sm font-bold text-foreground">{job.title}</span>
-        <span className="truncate text-[11px] text-muted">
-          {[job.format.toUpperCase(), bytes(job.bytes), took(
-            job.finishedAt && job.createdAt ? job.finishedAt - job.createdAt : null,
-          )]
-            .filter(Boolean)
-            .join(" · ")}
+    <Card className="flex flex-col gap-1.5 rounded-2xl border border-accent-soft-foreground/40 bg-surface p-3.5 shadow-none">
+      <div className="flex flex-row items-center gap-2.5">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm text-accent-soft-foreground">
+          ✓
         </span>
-      </div>
 
-      {job.driveLink ? (
+        <div className="flex min-w-0 flex-1 flex-col gap-px">
+          <span className="truncate text-sm font-bold text-foreground">{job.title}</span>
+          <span className="truncate text-[11px] text-muted">
+            {[job.format.toUpperCase(), bytes(job.bytes), took(
+              job.finishedAt && job.createdAt ? job.finishedAt - job.createdAt : null,
+            )]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        </div>
+
+        {local ? (
+          // An anchor rather than a Button: the browser's own download, with no
+          // pop-up blocker in the way and no window to manage.
+          <a
+            href={downloadUrl(job.id)}
+            download
+            className="shrink-0 rounded-lg border border-accent-soft-foreground/40 px-3 py-1.5 text-xs font-bold text-accent-soft-foreground hover:bg-accent-soft"
+          >
+            הורדה ⤓
+          </a>
+        ) : job.driveLink ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 rounded-lg border-accent-soft-foreground/40 text-xs font-bold text-accent-soft-foreground"
+            onPress={() => window.open(job.driveLink!, "_blank", "noopener,noreferrer")}
+          >
+            פתיחה בדרייב ↗
+          </Button>
+        ) : null}
+
         <Button
           size="sm"
-          variant="outline"
-          className="shrink-0 rounded-lg border-accent-soft-foreground/40 text-xs font-bold text-accent-soft-foreground"
-          onPress={() => window.open(job.driveLink!, "_blank", "noopener,noreferrer")}
+          variant="ghost"
+          isIconOnly
+          aria-label="הסרה מהרשימה"
+          onPress={() => onRemove(job.id)}
+          className="h-7 w-7 min-w-7 shrink-0"
         >
-          פתיחה בדרייב ↗
+          ✕
         </Button>
-      ) : null}
+      </div>
 
-      <Button
-        size="sm"
-        variant="ghost"
-        isIconOnly
-        aria-label="הסרה מהרשימה"
-        onPress={() => onRemove(job.id)}
-        className="h-7 w-7 min-w-7 shrink-0"
-      >
-        ✕
-      </Button>
+      {/* The file has nowhere else to live, so ✕ is destructive here. Saying so
+          is cheaper than a confirmation dialog. */}
+      {local ? (
+        <span className="text-[11px] text-muted">
+          הקובץ מחכה כאן להורדה · הסרה מהרשימה תמחק אותו
+        </span>
+      ) : null}
     </Card>
   );
 }
@@ -151,9 +173,8 @@ function FailedCard({ job, onAct, onRemove }: Props) {
       </div>
 
       <div className="flex gap-1.5">
-        {STAGES.map((stage) => {
-          const index = STAGES.indexOf(stage);
-          const failedIndex = STAGES.indexOf(job.failedStage ?? "download");
+        {stagesFor(job.destination).map((stage, index, stages) => {
+          const failedIndex = stages.indexOf(job.failedStage ?? "download");
           const tone =
             index < failedIndex
               ? "bg-accent"

@@ -1,10 +1,11 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
-import { rm, stat } from "node:fs/promises";
+import { readdir, rm, stat } from "node:fs/promises";
+import path from "node:path";
 
 import { findOutput, toMp3, toMp4 } from "./convert";
 import { safeFileName, uploadFile } from "./drive";
-import { ensureDirs, HISTORY_FILE, jobDir } from "./paths";
+import { ensureDirs, HISTORY_FILE, jobDir, jobDirPath, WORK_DIR } from "./paths";
 import { readFile, writeFile } from "node:fs/promises";
 import { download, fetchMetadata, findSource, YoutubeError } from "./youtube";
 import type { CreateJobInput, Job, Stage } from "./types";
@@ -52,9 +53,44 @@ async function loadHistory(): Promise<void> {
   store.loaded = true;
   try {
     const raw = JSON.parse(await readFile(HISTORY_FILE, "utf8")) as Job[];
-    for (const job of raw) store.jobs.set(job.id, job);
+    for (const job of raw) store.jobs.set(job.id, restore(job));
   } catch {
     /* first run — nothing to load */
+  }
+  await pruneOrphanWork();
+}
+
+/** Fills in fields that a history file written by an older version lacks. */
+function restore(job: Job): Job {
+  return {
+    ...job,
+    destination: job.destination ?? "drive",
+    folderId: job.folderId ?? null,
+    folderName: job.folderName ?? null,
+    fileName: job.fileName ?? null,
+  };
+}
+
+/**
+ * A direct-download file waits in its job's scratch directory until the card is
+ * removed, so the work root can't just be wiped at startup. What it can drop is
+ * every directory no job claims any more: a dead process's half-finished
+ * downloads, and jobs that fell off the end of the history.
+ */
+async function pruneOrphanWork(): Promise<void> {
+  try {
+    const entries = await readdir(WORK_DIR, { withFileTypes: true });
+    await Promise.all(
+      entries
+        .filter((entry) => entry.isDirectory() && !store.jobs.has(entry.name))
+        .map((entry) =>
+          rm(path.join(WORK_DIR, entry.name), { recursive: true, force: true }).catch(
+            () => {},
+          ),
+        ),
+    );
+  } catch {
+    /* first run — nothing has been written yet */
   }
 }
 
@@ -116,8 +152,9 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
     url: input.url,
     format: input.format,
     quality: input.quality,
-    folderId: input.folderId,
-    folderName: input.folderName,
+    destination: input.destination,
+    folderId: input.destination === "drive" ? input.folderId : null,
+    folderName: input.destination === "drive" ? input.folderName : null,
     title: meta.title,
     channel: meta.channel,
     duration: meta.duration,
@@ -135,6 +172,7 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
     error: null,
     driveLink: null,
     driveFileId: null,
+    fileName: null,
     createdAt: Date.now(),
     finishedAt: null,
   };
@@ -174,7 +212,11 @@ export async function cancelJob(id: string): Promise<void> {
   pump();
 }
 
-/** Drops a finished/failed card from the list without touching Drive. */
+/**
+ * Drops a finished/failed card from the list without touching Drive. A direct
+ * download's file lives in the scratch directory, so this is also what finally
+ * deletes it — which is why the card says so before the ✕ is pressed.
+ */
 export async function removeJob(id: string): Promise<void> {
   const job = store.jobs.get(id);
   if (!job) return;
@@ -208,7 +250,36 @@ export function retryJob(id: string): void {
 }
 
 async function cleanup(id: string): Promise<void> {
-  await rm(jobDir(id), { recursive: true, force: true }).catch(() => {});
+  await rm(jobDirPath(id), { recursive: true, force: true }).catch(() => {});
+}
+
+/**
+ * Empties a job's scratch directory of everything but the finished file. The
+ * downloaded streams are the bulk of it and nothing needs them once stage 2 is
+ * over, but a direct download still has to keep the file itself around.
+ */
+async function keepOnly(dir: string, file: string): Promise<void> {
+  try {
+    const entries = await readdir(dir);
+    await Promise.all(
+      entries
+        .map((name) => path.join(dir, name))
+        .filter((entry) => entry !== file)
+        .map((entry) => rm(entry, { recursive: true, force: true }).catch(() => {})),
+    );
+  } catch {
+    /* the directory is already gone */
+  }
+}
+
+/**
+ * The finished file of a direct-download job, if it is still on disk. Returns
+ * null once the card has been removed — the route turns that into "the file is
+ * no longer here" rather than a broken download.
+ */
+export async function localFile(job: Job): Promise<string | null> {
+  if (job.destination !== "download" || job.status !== "done") return null;
+  return findOutput(jobDirPath(job.id), job.format);
 }
 
 /* ------------------------------------------------------------------ */
@@ -297,14 +368,36 @@ async function run(id: string): Promise<void> {
     }
     throwIfAborted(signal);
 
+    const { size } = await stat(output);
+    const fileName = safeFileName(job.title, audioOnly ? ".mp3" : ".mp4");
+
+    /* -- Stage 3: hand over --------------------------------------- */
+    // A direct download has no third stage: the file is finished the moment
+    // ffmpeg is, and it waits here until the browser asks for it.
+    if (job.destination === "download") {
+      await keepOnly(dir, output);
+      patch(id, {
+        status: "done",
+        stage: "convert",
+        stagePercent: 100,
+        speed: null,
+        eta: null,
+        bytes: size,
+        fileName,
+        finishedAt: Date.now(),
+      });
+      await saveHistory();
+      return;
+    }
+
     /* -- Stage 3: upload ------------------------------------------ */
     stage = "upload";
-    const { size } = await stat(output);
+    if (!job.folderId) throw new Error("לא נבחרה תיקיית יעד בדרייב");
     patch(id, { stage: "upload", stagePercent: 0, eta: null, bytes: size });
 
     const result = await uploadFile({
       filePath: output,
-      name: safeFileName(job.title, audioOnly ? ".mp3" : ".mp4"),
+      name: fileName,
       mimeType: audioOnly ? "audio/mpeg" : "video/mp4",
       folderId: job.folderId,
       totalBytes: size,
@@ -320,6 +413,7 @@ async function run(id: string): Promise<void> {
       speed: null,
       eta: null,
       bytes: result.bytes,
+      fileName,
       driveLink: result.webViewLink,
       driveFileId: result.fileId,
       finishedAt: Date.now(),

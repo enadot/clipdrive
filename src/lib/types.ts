@@ -30,6 +30,28 @@ export const STAGE_LABEL: Record<Stage, string> = {
   upload: "העלאה לדרייב",
 };
 
+/**
+ * Where the finished file goes: up to Drive, or straight to the browser that
+ * asked for it. A direct download simply has no third stage — the file is done
+ * the moment ffmpeg is, and it waits on disk until it's fetched.
+ */
+export type Destination = "drive" | "download";
+
+export const DESTINATION_LABEL: Record<Destination, string> = {
+  drive: "שמירה בדרייב",
+  download: "הורדה למחשב",
+};
+
+/** Where a finished direct-download job hands its file to the browser. */
+export function downloadUrl(jobId: string): string {
+  return `/api/jobs/${jobId}/file`;
+}
+
+/** The stages a job of this destination actually runs, in pipeline order. */
+export function stagesFor(destination: Destination | undefined): Stage[] {
+  return destination === "download" ? ["download", "convert"] : STAGES;
+}
+
 export type JobStatus =
   | "queued"
   | "running"
@@ -55,9 +77,10 @@ export interface Job {
   url: string;
   format: Format;
   quality: Quality;
-  /** Drive folder the finished file lands in. */
-  folderId: string;
-  folderName: string;
+  destination: Destination;
+  /** Drive folder the finished file lands in. Null for a direct download. */
+  folderId: string | null;
+  folderName: string | null;
 
   title: string;
   channel: string;
@@ -79,9 +102,15 @@ export interface Job {
   failedStage: Stage | null;
   error: string | null;
 
-  /** webViewLink of the uploaded Drive file. */
+  /** webViewLink of the uploaded Drive file. Null for a direct download. */
   driveLink: string | null;
   driveFileId: string | null;
+
+  /**
+   * The name the finished file carries — the Drive file's name, or the name the
+   * browser is offered. Set once stage 2 produces the file.
+   */
+  fileName: string | null;
 
   createdAt: number;
   finishedAt: number | null;
@@ -94,8 +123,10 @@ export interface CreateJobInput {
   url: string;
   format: Format;
   quality: Quality;
-  folderId: string;
-  folderName: string;
+  destination: Destination;
+  /** Required when the destination is "drive"; ignored for a direct download. */
+  folderId: string | null;
+  folderName: string | null;
 }
 
 export interface DriveFolder {

@@ -15,7 +15,9 @@ import { FolderPicker } from "./folder-picker";
 import { Thumbnail } from "./thumbnail";
 import { approxBytes, duration as formatDuration } from "@/lib/format";
 import {
+  DESTINATION_LABEL,
   QUALITIES,
+  type Destination,
   type DriveFolder,
   type Format,
   type Quality,
@@ -23,9 +25,12 @@ import {
 } from "@/lib/types";
 
 const LAST_FOLDER_KEY = "clipdrive-last-folder";
+const LAST_DESTINATION_KEY = "clipdrive-last-destination";
 
 interface Props {
   onSubmitted: () => void;
+  /** Drive is only offered as a destination once it is actually connected. */
+  driveConnected: boolean;
 }
 
 /**
@@ -33,7 +38,7 @@ interface Props {
  * the link field carries focus on mount, a paste anywhere on the page lands in
  * it, metadata resolves on its own, and Enter submits.
  */
-export function ConverterForm({ onSubmitted }: Props) {
+export function ConverterForm({ onSubmitted, driveConnected }: Props) {
   const [url, setUrl] = useState("");
   const [video, setVideo] = useState<VideoMeta | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -42,19 +47,45 @@ export function ConverterForm({ onSubmitted }: Props) {
 
   const [format, setFormat] = useState<Format>("mp4");
   const [quality, setQuality] = useState<Quality>("1080p");
+  const [destination, setDestination] = useState<Destination>("drive");
   const [folder, setFolder] = useState<DriveFolder | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const probeRef = useRef<AbortController | null>(null);
 
-  /* Restore the last destination — the spec labels it "התיקייה האחרונה שנבחרה". */
+  /* Restore the last folder — the spec labels it "התיקייה האחרונה שנבחרה". */
   useEffect(() => {
     try {
       const stored = localStorage.getItem(LAST_FOLDER_KEY);
       if (stored) setFolder(JSON.parse(stored) as DriveFolder);
     } catch {
       /* nothing stored yet */
+    }
+  }, []);
+
+  /* The destination is sticky too — most people use the same one every time. */
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LAST_DESTINATION_KEY);
+      if (stored === "drive" || stored === "download") setDestination(stored);
+    } catch {
+      /* nothing stored yet */
+    }
+  }, []);
+
+  // Without a connected Drive there is exactly one destination that works, so
+  // the choice is made rather than offered.
+  useEffect(() => {
+    if (!driveConnected) setDestination("download");
+  }, [driveConnected]);
+
+  const chooseDestination = useCallback((next: Destination) => {
+    setDestination(next);
+    try {
+      localStorage.setItem(LAST_DESTINATION_KEY, next);
+    } catch {
+      /* private mode — it just won't be remembered */
     }
   }, []);
 
@@ -134,10 +165,12 @@ export function ConverterForm({ onSubmitted }: Props) {
     return () => window.removeEventListener("paste", onPaste);
   }, []);
 
-  const canSubmit = Boolean(video && folder && !submitting);
+  const needsFolder = destination === "drive";
+  const canSubmit = Boolean(video && (!needsFolder || folder) && !submitting);
 
   const submit = useCallback(async () => {
-    if (!video || !folder || submitting) return;
+    if (!video || submitting) return;
+    if (destination === "drive" && !folder) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/jobs", {
@@ -147,8 +180,9 @@ export function ConverterForm({ onSubmitted }: Props) {
           url,
           format,
           quality,
-          folderId: folder.id,
-          folderName: folder.name,
+          destination,
+          folderId: destination === "drive" ? folder?.id : null,
+          folderName: destination === "drive" ? folder?.name : null,
         }),
       });
       const data = (await res.json()) as { error?: string };
@@ -165,7 +199,7 @@ export function ConverterForm({ onSubmitted }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [video, folder, submitting, url, format, quality, onSubmitted]);
+  }, [video, folder, submitting, url, format, quality, destination, onSubmitted]);
 
   const estimate =
     format === "mp3" ? video?.audioSizeEstimate ?? null : video?.sizeEstimates[quality] ?? null;
@@ -288,7 +322,43 @@ export function ConverterForm({ onSubmitted }: Props) {
             ) : null}
           </div>
 
-          <FolderRow folder={folder} onSelectFolder={chooseFolder} />
+          <div className="flex w-full flex-col gap-2">
+            <label className="text-xs font-bold text-muted" id="destination-label">
+              יעד
+            </label>
+            <ToggleButtonGroup
+              aria-labelledby="destination-label"
+              selectionMode="single"
+              disallowEmptySelection
+              selectedKeys={[destination]}
+              onSelectionChange={(keys) => {
+                const next = [...keys][0];
+                if (next === "drive" || next === "download") chooseDestination(next);
+              }}
+              fullWidth
+              className="rounded-[10px] bg-surface-secondary p-[3px]"
+            >
+              <ToggleButton
+                id="drive"
+                isDisabled={!driveConnected}
+                className="flex-1 rounded-lg px-[22px] py-[7px] text-[13px]"
+              >
+                {DESTINATION_LABEL.drive}
+              </ToggleButton>
+              <ToggleButton
+                id="download"
+                className="flex-1 rounded-lg px-[22px] py-[7px] text-[13px]"
+              >
+                {DESTINATION_LABEL.download}
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </div>
+
+          {destination === "drive" ? (
+            <FolderRow folder={folder} onSelectFolder={chooseFolder} />
+          ) : (
+            <DownloadRow driveConnected={driveConnected} />
+          )}
 
           <Button
             variant="primary"
@@ -300,7 +370,7 @@ export function ConverterForm({ onSubmitted }: Props) {
               <Spinner size="sm" />
             ) : (
               <>
-                המר ושמור בדרייב
+                {destination === "drive" ? "המר ושמור בדרייב" : "המר והורד למחשב"}
                 <span className="text-xs font-normal opacity-80">
                   {" · "}
                   <span className="ltr-run">Enter ↵</span>
@@ -321,6 +391,44 @@ export function ConverterForm({ onSubmitted }: Props) {
         טיפ: <span className="ltr-run">Ctrl+V</span> בכל מקום במסך מדביק ומזהה את הלינק אוטומטית
       </span>
 
+    </div>
+  );
+}
+
+/**
+ * The direct-download counterpart of FolderRow. There is nothing to choose, so
+ * it spends its space explaining where the file waits and how long — plus the
+ * way back to Drive when there is no connection yet.
+ */
+function DownloadRow({ driveConnected }: { driveConnected: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-xl border border-border bg-background px-3.5 py-2.5">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg bg-accent-soft text-sm text-accent-soft-foreground">
+          ⤓
+        </span>
+        <div className="flex min-w-0 flex-col">
+          <span className="truncate text-sm font-bold text-foreground">
+            {DESTINATION_LABEL.download}
+          </span>
+          <span className="text-[11px] text-muted">
+            כשהקובץ יהיה מוכן יופיע כפתור הורדה על כרטיס המשימה
+          </span>
+        </div>
+      </div>
+
+      {!driveConnected ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={() => {
+            window.location.href = "/api/auth/google";
+          }}
+          className="shrink-0 text-[13px] font-bold text-accent-soft-foreground"
+        >
+          חיבור לדרייב
+        </Button>
+      ) : null}
     </div>
   );
 }

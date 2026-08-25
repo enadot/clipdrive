@@ -3,7 +3,7 @@
 import { ProgressBar } from "@heroui/react";
 
 import { eta as formatEta, bytesPerSecond } from "@/lib/format";
-import { STAGES, STAGE_LABEL, type Job, type Stage } from "@/lib/types";
+import { stagesFor, STAGE_LABEL, type Job, type Stage } from "@/lib/types";
 
 interface Props {
   job: Job;
@@ -16,12 +16,13 @@ interface Props {
 type SegmentState = "done" | "active" | "failed" | "pending";
 
 function segmentState(job: Job, stage: Stage): SegmentState {
-  const index = STAGES.indexOf(stage);
-  const currentIndex = STAGES.indexOf(job.stage);
+  const stages = stagesFor(job.destination);
+  const index = stages.indexOf(stage);
+  const currentIndex = stages.indexOf(job.stage);
 
   if (job.status === "failed") {
     if (job.failedStage === stage) return "failed";
-    return index < STAGES.indexOf(job.failedStage ?? job.stage) ? "done" : "pending";
+    return index < stages.indexOf(job.failedStage ?? job.stage) ? "done" : "pending";
   }
   if (job.status === "done") return "done";
   if (index < currentIndex) return "done";
@@ -29,15 +30,18 @@ function segmentState(job: Job, stage: Stage): SegmentState {
   return "active";
 }
 
-/** 0–100 across the whole three-stage pipeline, for the accessible value. */
+/** 0–100 across the job's whole pipeline, for the accessible value. */
 function overallPercent(job: Job): number {
   if (job.status === "done") return 100;
-  const completed = STAGES.indexOf(job.stage);
-  return Math.round(((completed + job.stagePercent / 100) / STAGES.length) * 100);
+  const stages = stagesFor(job.destination);
+  const completed = Math.max(0, stages.indexOf(job.stage));
+  return Math.round(((completed + job.stagePercent / 100) / stages.length) * 100);
 }
 
 /**
- * The three-segment meter: download → convert → upload, filling right-to-left.
+ * The stage meter: download → convert → upload, filling right-to-left. A direct
+ * download runs two of those stages, so it gets two segments — the road ahead
+ * shown is the road the job actually travels.
  *
  * It is deliberately determinate at every moment — a percentage and a time
  * estimate rather than a spinner — and only the segment doing work carries the
@@ -69,9 +73,9 @@ export function ProgressMeter({ job, size = "md", showSpeed = true }: Props) {
       aria-label={`${job.title} — ${caption}`}
       className="flex flex-col gap-2"
     >
-      {/* One accessible progress bar, three visible segments. */}
+      {/* One accessible progress bar, one visible segment per stage. */}
       <div className="flex gap-1.5">
-        {STAGES.map((stage) => (
+        {stagesFor(job.destination).map((stage) => (
           <Segment
             key={stage}
             state={segmentState(job, stage)}

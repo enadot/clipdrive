@@ -2,7 +2,7 @@
 
 import { Button } from "@heroui/react";
 
-import type { Job } from "@/lib/types";
+import { downloadUrl, type Job } from "@/lib/types";
 
 interface Props {
   jobs: Job[];
@@ -37,7 +37,15 @@ export function TaskHistoryList({ jobs, onAct }: Props) {
             {job.title}
           </span>
 
-          {job.status === "done" && job.driveLink ? (
+          {job.status === "done" && job.destination === "download" ? (
+            <a
+              href={downloadUrl(job.id)}
+              download
+              className="shrink-0 text-[11px] font-bold text-accent-soft-foreground hover:underline"
+            >
+              הורדה ⤓
+            </a>
+          ) : job.status === "done" && job.driveLink ? (
             <a
               href={job.driveLink}
               target="_blank"

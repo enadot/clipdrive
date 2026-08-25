@@ -33,7 +33,10 @@ export async function POST(request: NextRequest) {
     ? (body.quality as Quality)
     : "1080p";
 
-  if (!body.folderId || !body.folderName) {
+  // A direct download needs nothing but the link — that's the whole point of
+  // it, so the folder requirement applies to Drive jobs only.
+  const destination = body.destination === "download" ? "download" : "drive";
+  if (destination === "drive" && (!body.folderId || !body.folderName)) {
     return NextResponse.json({ error: "צריך לבחור תיקיית יעד" }, { status: 400 });
   }
 
@@ -42,8 +45,9 @@ export async function POST(request: NextRequest) {
       url,
       format,
       quality,
-      folderId: body.folderId,
-      folderName: body.folderName,
+      destination,
+      folderId: body.folderId ?? null,
+      folderName: body.folderName ?? null,
     });
     return NextResponse.json({ job }, { status: 201 });
   } catch (err) {

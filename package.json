@@ -2,7 +2,7 @@
   "name": "clipdrive",
   "version": "2.0.0",
   "private": true,
-  "description": "YouTube → MP4/MP3 → Google Drive, in one click.",
+  "description": "YouTube → MP4/MP3 → Google Drive or a direct download, in one click.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

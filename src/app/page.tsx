@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { toast } from "@heroui/react";
@@ -12,7 +12,7 @@ import { TaskPanel } from "@/components/task-panel";
 import { useAuth } from "@/hooks/use-drive";
 import { useJobs } from "@/hooks/use-jobs";
 import { bytes } from "@/lib/format";
-import type { Job } from "@/lib/types";
+import { downloadUrl, type Job } from "@/lib/types";
 
 export default function HomePage() {
   return (
@@ -25,6 +25,9 @@ export default function HomePage() {
 function Home() {
   const { auth } = useAuth();
   const { jobs, ready, act, remove } = useJobs();
+  // Converting to a direct download needs no Drive at all, so the connect
+  // screen is a recommendation rather than a wall.
+  const [skipDrive, setSkipDrive] = useState(false);
 
   useAuthRedirectToast();
   useCompletionToasts(jobs);
@@ -35,11 +38,18 @@ function Home() {
 
   return (
     <AppShell auth={auth}>
-      {auth && !auth.connected ? (
-        <DriveEmptyState configured={auth.configured} redirectUri={auth.redirectUri} />
+      {auth && !auth.connected && !skipDrive ? (
+        <DriveEmptyState
+          configured={auth.configured}
+          redirectUri={auth.redirectUri}
+          onSkip={() => setSkipDrive(true)}
+        />
       ) : (
         <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col gap-6 p-4 sm:p-7 lg:flex-row lg:gap-6">
-          <ConverterForm onSubmitted={onSubmitted} />
+          <ConverterForm
+            onSubmitted={onSubmitted}
+            driveConnected={Boolean(auth?.connected)}
+          />
           <TaskPanel jobs={jobs} ready={ready} onAct={act} onRemove={remove} />
         </div>
       )}
@@ -87,16 +97,27 @@ function useCompletionToasts(jobs: Job[]) {
       if (job.status !== "done" || announced.current.has(job.id)) continue;
       announced.current.add(job.id);
 
-      toast.success("הקובץ מוכן בדרייב", {
+      const local = job.destination === "download";
+
+      toast.success(local ? "הקובץ מוכן להורדה" : "הקובץ מוכן בדרייב", {
         description: [job.title, job.format.toUpperCase(), bytes(job.bytes)]
           .filter(Boolean)
           .join(" · "),
-        actionProps: job.driveLink
+        actionProps: local
           ? {
-              children: "פתיחה ↗",
-              onPress: () => window.open(job.driveLink!, "_blank", "noopener,noreferrer"),
+              children: "הורדה ⤓",
+              // The response is an attachment, so this starts the download
+              // instead of navigating away from the app.
+              onPress: () => {
+                window.location.href = downloadUrl(job.id);
+              },
             }
-          : undefined,
+          : job.driveLink
+            ? {
+                children: "פתיחה ↗",
+                onPress: () => window.open(job.driveLink!, "_blank", "noopener,noreferrer"),
+              }
+            : undefined,
       });
     }
 

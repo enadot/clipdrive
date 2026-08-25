@@ -19,9 +19,14 @@ export function ensureDirs(): void {
   mkdirSync(WORK_DIR, { recursive: true });
 }
 
+/** Where one job's intermediate files live — without creating the directory. */
+export function jobDirPath(jobId: string): string {
+  return path.join(WORK_DIR, jobId);
+}
+
 /** Scratch directory for one job's intermediate files. */
 export function jobDir(jobId: string): string {
-  const dir = path.join(WORK_DIR, jobId);
+  const dir = jobDirPath(jobId);
   mkdirSync(dir, { recursive: true });
   return dir;
 }

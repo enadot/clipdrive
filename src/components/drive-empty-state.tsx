@@ -6,13 +6,19 @@ import { Button, EmptyState } from "@heroui/react";
  * Screen 1b, in the v2 visual language. One sentence on why the connection is
  * needed and exactly what the permission covers — the spec's whole pitch is
  * trust, so the narrow scope is stated up front rather than buried.
+ *
+ * Since a direct download needs no permission at all, this is a recommendation
+ * with a way past it rather than a locked door.
  */
 export function DriveEmptyState({
   configured,
   redirectUri,
+  onSkip,
 }: {
   configured: boolean;
   redirectUri?: string;
+  /** Continues into the converter with "download to this computer" as the only destination. */
+  onSkip: () => void;
 }) {
   return (
     <div className="flex flex-1 items-center justify-center p-6">
@@ -53,6 +59,14 @@ export function DriveEmptyState({
             </span>
           </div>
         )}
+
+        <Button
+          variant="ghost"
+          onPress={onSkip}
+          className="-mt-1 text-[13px] font-bold text-accent-soft-foreground"
+        >
+          בלי דרייב — רק להוריד למחשב ⤓
+        </Button>
 
         <span className="text-[11px] text-muted">
           אפשר לנתק בכל רגע — הניתוק מוחק את ההרשאה מהמכשיר הזה.
