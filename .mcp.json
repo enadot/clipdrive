@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "clipdrive": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp/stdio.ts"],
+      "env": {
+        "CLIPDRIVE_BASE_URL": "${CLIPDRIVE_BASE_URL:-http://localhost:3000}"
+      }
+    }
+  }
+}
