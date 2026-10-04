@@ -155,4 +155,6 @@ export type LinkErrorCode =
   | "outdated"
   /** YouTube refused every player client we tried. */
   | "blocked"
+  /** The cookie source configured in .env couldn't be read. */
+  | "cookies"
   | "unknown";

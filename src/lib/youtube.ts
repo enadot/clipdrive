@@ -17,11 +17,39 @@ const YT_DLP = process.env.YT_DLP_PATH ?? "yt-dlp";
  * "confirm you're not a bot" wall. Borrowing the cookies of a browser that is
  * already signed in is the supported way through it.
  *
- * Set YT_DLP_COOKIES_FROM_BROWSER=chrome (or firefox, edge, brave…).
+ * Set YT_DLP_COOKIES_FROM_BROWSER=chrome (or chromium, firefox, edge, brave…),
+ * or YT_DLP_COOKIES_FILE=/path/to/cookies.txt — the file wins if both are set.
  */
-function authArgs(): string[] {
+function configuredCookieArgs(): string[] {
+  const file = process.env.YT_DLP_COOKIES_FILE?.trim();
+  if (file) return ["--cookies", file];
   const browser = process.env.YT_DLP_COOKIES_FROM_BROWSER?.trim();
   return browser ? ["--cookies-from-browser", browser] : [];
+}
+
+/**
+ * Set once yt-dlp has failed to read the configured cookies. A browser that
+ * isn't installed fails every request before YouTube is even asked, and most
+ * videos don't need cookies at all — so the app carries on without them for
+ * the rest of the process instead of failing every link. Restarting after
+ * fixing .env clears it.
+ */
+let cookiesUnreadable = false;
+
+function authArgs(): string[] {
+  return cookiesUnreadable ? [] : configuredCookieArgs();
+}
+
+/** yt-dlp couldn't load the cookie source — nothing to do with YouTube. */
+function isCookieFailure(stderr: string): boolean {
+  const s = stderr.toLowerCase();
+  return (
+    s.includes("cookies database") ||
+    s.includes("cookie database") ||
+    s.includes("specified for cookies") ||
+    s.includes("could not find local state file") ||
+    s.includes("failed to decrypt with dpapi")
+  );
 }
 
 /**
@@ -83,7 +111,18 @@ async function runWithClientFallback(
       console.warn(`[clipdrive] retrying yt-dlp with player_client=${client}`);
     }
 
-    const result = await run(buildArgs(client), opts);
+    let result = await run(buildArgs(client), opts);
+
+    if (result.code !== 0 && !cookiesUnreadable && isCookieFailure(result.stderr)) {
+      cookiesUnreadable = true;
+      console.warn(
+        `[clipdrive] couldn't read the cookies configured in .env ` +
+          `(${configuredCookieArgs().join(" ")}): ${lastYtDlpError(result.stderr)} ` +
+          `— continuing without cookies. Fix or remove that line and restart.`,
+      );
+      await opts.beforeRetry?.();
+      result = await run(buildArgs(client), opts);
+    }
 
     if (result.code === 0) {
       if (client) {
@@ -125,13 +164,15 @@ export const LINK_ERROR_TEXT: Record<LinkErrorCode, string> = {
   unavailable: "הסרטון לא זמין — ייתכן שהוסר או שהכתובת שגויה.",
   geo_blocked: "הסרטון חסום באזור שלכם.",
   age_restricted:
-    "הסרטון מוגבל בגיל. צריך קובץ cookies מהדפדפן — ראו YT_DLP_COOKIES_FROM_BROWSER ב-.env.example.",
+    "הסרטון מוגבל בגיל. צריך cookies מדפדפן מחובר — ראו YT_DLP_COOKIES_FROM_BROWSER ב-.env.example.",
   bot_check:
-    "יוטיוב ביקש אימות שאתם לא בוט. הריצו yt-dlp -U, ואם זה חוזר — הגדירו YT_DLP_COOKIES_FROM_BROWSER=chrome ב-.env.",
+    "יוטיוב ביקש אימות שאתם לא בוט. הריצו yt-dlp -U, ואם זה חוזר — הגדירו ב-.env את YT_DLP_COOKIES_FROM_BROWSER לדפדפן שמותקן אצלכם ומחובר ליוטיוב (chrome / chromium / firefox / brave).",
   outdated:
     "גרסת yt-dlp לא מסתדרת עם יוטיוב. עדכנו: yt-dlp -U (או pip install -U yt-dlp).",
   blocked:
-    "יוטיוב חסם את כל שיטות הגישה שניסינו. עדכנו את yt-dlp (yt-dlp -U); אם זה לא עוזר, הגדירו YT_DLP_COOKIES_FROM_BROWSER=chrome ב-.env.",
+    "יוטיוב חסם את כל שיטות הגישה שניסינו. עדכנו את yt-dlp (yt-dlp -U); אם זה לא עוזר, הגדירו ב-.env את YT_DLP_COOKIES_FROM_BROWSER לדפדפן שמותקן אצלכם.",
+  cookies:
+    "לא הצלחנו לקרוא cookies מהדפדפן שהוגדר ב-.env (YT_DLP_COOKIES_FROM_BROWSER). ודאו שהדפדפן הזה באמת מותקן במחשב (למשל chromium / firefox / brave), או מחקו את השורה והפעילו מחדש.",
   unknown: "לא הצלחנו לקרוא את הסרטון. בדקו את הכתובת ונסו שוב.",
 };
 
@@ -191,6 +232,8 @@ function extractVideoId(url: URL): string | null {
 
 function classifyError(stderr: string): LinkErrorCode {
   const s = stderr.toLowerCase();
+
+  if (isCookieFailure(stderr)) return "cookies";
 
   // Checked before "private": the bot wall also mentions signing in, and it is
   // by far the most common reason a perfectly public video fails today.

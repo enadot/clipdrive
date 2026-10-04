@@ -57,13 +57,15 @@ export const LINK_ERROR_HELP: Record<LinkErrorCode, string> = {
   geo_blocked:
     "YouTube blocks this video in the app machine's country. A retry from the same machine will fail the same way.",
   age_restricted:
-    "The video is age-restricted, so yt-dlp needs a signed-in session. Ask the human to set YT_DLP_COOKIES_FROM_BROWSER=chrome (or firefox/edge/brave) in the app's .env and restart it.",
+    "The video is age-restricted, so yt-dlp needs a signed-in session. Ask the human to set YT_DLP_COOKIES_FROM_BROWSER to a browser that is installed and signed in to YouTube on the app's machine (chrome/chromium/firefox/brave/edge), or YT_DLP_COOKIES_FILE to an exported cookies.txt, in the app's .env and restart it.",
   bot_check:
-    "YouTube served a bot check instead of the video. Ask the human to run `yt-dlp -U`; if it keeps happening, set YT_DLP_COOKIES_FROM_BROWSER=chrome in the app's .env and restart it. Retrying as-is will not help.",
+    "YouTube served a bot check instead of the video. Ask the human to run `yt-dlp -U`; if it keeps happening, set YT_DLP_COOKIES_FROM_BROWSER to a browser installed and signed in on the app's machine (or YT_DLP_COOKIES_FILE) in the app's .env and restart it. Retrying as-is will not help.",
   outdated:
     "yt-dlp is behind YouTube's current player. Ask the human to run `yt-dlp -U` and try again.",
   blocked:
-    "YouTube refused every player client the app tried. Ask the human to run `yt-dlp -U`, and consider YT_DLP_COOKIES_FROM_BROWSER. Retrying immediately will not help.",
+    "YouTube refused every player client the app tried. Ask the human to run `yt-dlp -U`, and consider YT_DLP_COOKIES_FROM_BROWSER or YT_DLP_COOKIES_FILE. Retrying immediately will not help.",
+  cookies:
+    "yt-dlp couldn't read the cookies configured in the app's .env (YT_DLP_COOKIES_FROM_BROWSER names a browser that isn't installed on that machine, or whose profile can't be read). Ask the human to fix or delete that line and restart the app. Retrying as-is will not help.",
   unknown: "yt-dlp failed for a reason the app couldn't classify — the detail line below is the real message.",
 };
 
