@@ -6,6 +6,7 @@ import {
   Button,
   Checkbox,
   DateField,
+  InputGroup,
   Label,
   Spinner,
   ToggleButton,
@@ -24,6 +25,27 @@ import {
 const TABS: ChannelTab[] = ["videos", "shorts"];
 /** Rows drawn at a time — a big channel has thousands. */
 const PAGE = 150;
+
+/**
+ * Folds a title for matching: case, niqqud and teamim, and the quote marks of
+ * Hebrew abbreviations — so "תשפז" finds 'תשפ"ז' and "שליטא" finds 'שליט"א'.
+ */
+function fold(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[\u0591-\u05C7]/g, "")
+    .replace(/["'״׳`]/g, "");
+}
+
+/** Every word typed must appear somewhere in the title, in any order. */
+function matcher(query: string): (entry: ChannelEntry) => boolean {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return () => true;
+  return (entry) => {
+    const title = fold(entry.title);
+    return words.every((w) => title.includes(w));
+  };
+}
 
 interface TabState {
   listing: ChannelListing | null;
@@ -54,6 +76,7 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
   const [active, setActive] = useState<ChannelTab>("videos");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [shown, setShown] = useState(PAGE);
+  const [query, setQuery] = useState("");
 
   const [from, setFrom] = useState<DateValue | null>(null);
   const [to, setTo] = useState<DateValue | null>(null);
@@ -138,7 +161,11 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
 
   const current = tabs[active];
   const entries = useMemo(() => current.listing?.entries ?? [], [current.listing]);
-  const pickedHere = entries.filter((e) => selected.has(e.id)).length;
+  const matches = useMemo(() => matcher(query), [query]);
+  const filtering = query.trim().length > 0;
+  // What the list shows and the bulk buttons act on: the keyword narrows both.
+  const visible = useMemo(() => entries.filter(matches), [entries, matches]);
+  const pickedHere = visible.filter((e) => selected.has(e.id)).length;
 
   const replaceTabSelection = useCallback(
     (tab: ChannelTab, ids: string[]) => {
@@ -161,9 +188,21 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
     });
   }, []);
 
+  const setMany = useCallback((ids: string[], on: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }, []);
+
   const selectAllShorts = () => {
-    const ids = tabs.shorts.listing?.entries.map((e) => e.id) ?? [];
-    replaceTabSelection("shorts", ids);
+    const ids = tabs.shorts.listing?.entries.filter(matches).map((e) => e.id) ?? [];
+    if (filtering) setMany(ids, true);
+    else replaceTabSelection("shorts", ids);
     setActive("shorts");
     setShown(PAGE);
   };
@@ -187,12 +226,18 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
         setRangeError(data.error ?? "לא הצלחנו לבדוק את התאריכים");
         return;
       }
-      const slice = entries.slice(data.start, data.end);
+      // The date search needs the whole list in order; the keyword is applied
+      // to what it finds.
+      const slice = entries.slice(data.start, data.end).filter(matches);
       replaceTabSelection(active, slice.map((e) => e.id));
       // Make sure the first picked row is actually on screen.
       setShown((n) => Math.max(n, Math.min(entries.length, data.end! + 20)));
-      if (slice.length === 0) toast.warning("אין סרטונים בטווח התאריכים הזה");
-      else toast.success(`סומנו ${slice.length} ${active === "shorts" ? "Shorts" : "סרטונים"} לפי תאריך`);
+      const where = filtering ? ` עם "${query.trim()}"` : "";
+      if (slice.length === 0) toast.warning(`אין סרטונים${where} בטווח התאריכים הזה`);
+      else
+        toast.success(
+          `סומנו ${slice.length} ${active === "shorts" ? "Shorts" : "סרטונים"}${where} לפי תאריך`,
+        );
     } catch {
       setRangeError("לא הצלחנו לבדוק את התאריכים");
     } finally {
@@ -200,8 +245,9 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
     }
   };
 
-  const shortsCount = tabs.shorts.listing?.entries.length ?? 0;
-  const allHere = entries.length > 0 && pickedHere === entries.length;
+  const shortsCount = tabs.shorts.listing?.entries.filter(matches).length ?? 0;
+  const allHere = visible.length > 0 && pickedHere === visible.length;
+  const kind = active === "shorts" ? "Shorts" : "סרטונים";
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5">
@@ -262,6 +308,40 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
         })}
       </ToggleButtonGroup>
 
+      {/* Keyword filter. Narrows the list and every bulk pick below it. */}
+      <div className="flex flex-col gap-1.5">
+        <InputGroup className="h-10 rounded-xl border border-border bg-background px-3">
+          <InputGroup.Prefix className="text-sm text-muted">⌕</InputGroup.Prefix>
+          <InputGroup.Input
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setShown(PAGE);
+            }}
+            aria-label="סינון לפי מילת מפתח"
+            placeholder="סינון לפי מילת מפתח בכותרת — למשל: פרשת, חנוכה, שבת"
+            className="flex-1 border-none bg-transparent text-sm text-foreground shadow-none placeholder:text-muted focus:outline-none"
+          />
+          {filtering ? (
+            <InputGroup.Suffix>
+              <Button
+                size="sm"
+                variant="ghost"
+                onPress={() => setQuery("")}
+                className="rounded-lg px-2 text-xs font-bold text-muted"
+              >
+                ✕
+              </Button>
+            </InputGroup.Suffix>
+          ) : null}
+        </InputGroup>
+        {filtering && !current.loading ? (
+          <span className="text-[11px] text-muted">
+            {visible.length} מתוך {entries.length} {kind} מתאימים · כמה מילים = כולן צריכות להופיע
+          </span>
+        ) : null}
+      </div>
+
       {/* Bulk picks. */}
       <div className="flex flex-wrap gap-2">
         <Button
@@ -276,17 +356,24 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
         <Button
           size="sm"
           variant="secondary"
-          isDisabled={entries.length === 0}
-          onPress={() => replaceTabSelection(active, allHere ? [] : entries.map((e) => e.id))}
+          isDisabled={visible.length === 0}
+          onPress={() => setMany(visible.map((e) => e.id), !allHere)}
           className="rounded-full text-xs font-bold"
         >
-          {allHere ? "ביטול הסימון ברשימה" : `כל ה${active === "shorts" ? "-Shorts" : "סרטונים"} ברשימה`}
+          {allHere
+            ? filtering
+              ? "ביטול הסימון של התוצאות"
+              : "ביטול הסימון ברשימה"
+            : filtering
+              ? `סימון כל התוצאות (${visible.length})`
+              : `כל ה${active === "shorts" ? "-Shorts" : "סרטונים"} ברשימה`}
         </Button>
       </div>
 
       <div className="flex flex-col gap-2 rounded-xl border border-border bg-background p-3">
         <span className="text-xs font-bold text-muted">
           סימון לפי תאריך העלאה · {active === "shorts" ? "ב-Shorts" : "בסרטונים"}
+          {filtering ? ` · רק עם "${query.trim()}"` : ""}
         </span>
         <div className="flex flex-wrap items-end gap-3">
           <DateField value={from} onChange={setFrom} className="w-[150px]">
@@ -327,7 +414,8 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
 
       <List
         state={current}
-        entries={entries}
+        entries={visible}
+        filtering={filtering}
         shown={shown}
         onShowMore={() => setShown((n) => n + PAGE)}
         selected={selected}
@@ -341,6 +429,7 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
 function List({
   state,
   entries,
+  filtering,
   shown,
   onShowMore,
   selected,
@@ -349,6 +438,7 @@ function List({
 }: {
   state: TabState;
   entries: ChannelEntry[];
+  filtering: boolean;
   shown: number;
   onShowMore: () => void;
   selected: Set<string>;
@@ -378,7 +468,11 @@ function List({
   }
 
   if (entries.length === 0) {
-    return <div className="py-8 text-center text-xs text-muted">אין כאן סרטונים</div>;
+    return (
+      <div className="py-8 text-center text-xs text-muted">
+        {filtering ? "אין סרטונים עם המילים האלה ברשימה הזו" : "אין כאן סרטונים"}
+      </div>
+    );
   }
 
   return (
@@ -386,7 +480,7 @@ function List({
       {state.listing?.partial ? (
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-xs text-warning">
-            יוטיוב הפסיק לענות באמצע — מוצגים {entries.length} הסרטונים החדשים ביותר, והישנים
+            יוטיוב הפסיק לענות באמצע — נטענו {state.listing.entries.length} הסרטונים החדשים ביותר, והישנים
             יותר חסרים.
           </span>
           <Button
