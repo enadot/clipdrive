@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   InputGroup,
@@ -11,13 +11,16 @@ import {
   toast,
 } from "@heroui/react";
 
+import { ChannelPicker } from "./channel-picker";
 import { FolderPicker } from "./folder-picker";
 import { Thumbnail } from "./thumbnail";
 import { approxBytes, duration as formatDuration } from "@/lib/format";
+import { normalizeChannelUrl } from "@/lib/channel-url";
 import {
   DESTINATION_LABEL,
   QUALITIES,
   type Destination,
+  type ChannelEntry,
   type DriveFolder,
   type Format,
   type Quality,
@@ -50,6 +53,15 @@ export function ConverterForm({ onSubmitted, driveConnected }: Props) {
   const [destination, setDestination] = useState<Destination>("drive");
   const [folder, setFolder] = useState<DriveFolder | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // A channel link swaps the single-video card for a list to pick from.
+  const channelUrl = useMemo(() => normalizeChannelUrl(url), [url]);
+  const [picked, setPicked] = useState<ChannelEntry[]>([]);
+  const [channelName, setChannelName] = useState("");
+  const onPicked = useCallback((entries: ChannelEntry[], channel: string) => {
+    setPicked(entries);
+    setChannelName(channel);
+  }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const probeRef = useRef<AbortController | null>(null);
@@ -101,7 +113,7 @@ export function ConverterForm({ onSubmitted, driveConnected }: Props) {
   /* Resolve metadata shortly after typing settles. */
   useEffect(() => {
     probeRef.current?.abort();
-    if (!url.trim()) {
+    if (!url.trim() || channelUrl) {
       setVideo(null);
       setLinkError(null);
       setLinkDetail(null);
@@ -148,7 +160,7 @@ export function ConverterForm({ onSubmitted, driveConnected }: Props) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [url]);
+  }, [url, channelUrl]);
 
   /* Ctrl+V anywhere on the screen — the tip the empty state promises. */
   useEffect(() => {
@@ -166,9 +178,50 @@ export function ConverterForm({ onSubmitted, driveConnected }: Props) {
   }, []);
 
   const needsFolder = destination === "drive";
-  const canSubmit = Boolean(video && (!needsFolder || folder) && !submitting);
+  const hasSomething = channelUrl ? picked.length > 0 : Boolean(video);
+  const canSubmit = Boolean(hasSomething && (!needsFolder || folder) && !submitting);
+
+  const submitBatch = useCallback(async () => {
+    if (picked.length === 0 || submitting) return;
+    if (destination === "drive" && !folder) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/jobs/batch", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          channel: channelName,
+          items: picked.map(({ id, title, duration, thumbnail }) => ({
+            id,
+            title,
+            duration,
+            thumbnail,
+          })),
+          format,
+          quality,
+          destination,
+          folderId: destination === "drive" ? folder?.id : null,
+          folderName: destination === "drive" ? folder?.name : null,
+        }),
+      });
+      const data = (await res.json()) as { error?: string; count?: number };
+      if (!res.ok) {
+        toast.danger(data.error ?? "לא הצלחנו להתחיל את ההמרה");
+        return;
+      }
+      toast.success(`${data.count ?? picked.length} סרטונים נוספו לתור`);
+      setUrl("");
+      setPicked([]);
+      inputRef.current?.focus();
+    } catch {
+      toast.danger("לא הצלחנו להתחיל את ההמרה");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [picked, channelName, folder, submitting, format, quality, destination]);
 
   const submit = useCallback(async () => {
+    if (channelUrl) return submitBatch();
     if (!video || submitting) return;
     if (destination === "drive" && !folder) return;
     setSubmitting(true);
@@ -199,10 +252,24 @@ export function ConverterForm({ onSubmitted, driveConnected }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [video, folder, submitting, url, format, quality, destination, onSubmitted]);
+  }, [
+    channelUrl,
+    submitBatch,
+    video,
+    folder,
+    submitting,
+    url,
+    format,
+    quality,
+    destination,
+    onSubmitted,
+  ]);
 
-  const estimate =
-    format === "mp3" ? video?.audioSizeEstimate ?? null : video?.sizeEstimates[quality] ?? null;
+  const estimate = channelUrl
+    ? null
+    : format === "mp3"
+      ? video?.audioSizeEstimate ?? null
+      : video?.sizeEstimates[quality] ?? null;
 
   return (
     <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col gap-4">
@@ -212,7 +279,7 @@ export function ConverterForm({ onSubmitted, driveConnected }: Props) {
         onChange={setUrl}
         onSubmit={() => void submit()}
         onClear={() => setUrl("")}
-        state={linkError ? "error" : video ? "valid" : "idle"}
+        state={linkError ? "error" : video || channelUrl ? "valid" : "idle"}
         probing={probing}
       />
 
@@ -235,24 +302,28 @@ export function ConverterForm({ onSubmitted, driveConnected }: Props) {
         </div>
       ) : null}
 
-      {video ? (
+      {channelUrl ? <ChannelPicker channelUrl={channelUrl} onChange={onPicked} /> : null}
+
+      {video || channelUrl ? (
         <div className="flex flex-col gap-[18px] rounded-2xl border border-border bg-surface p-5">
-          <div className="flex items-center gap-3.5">
-            <Thumbnail
-              src={video.thumbnail}
-              alt={video.title}
-              className="h-[54px] w-24 sm:h-[83px] sm:w-[148px]"
-              durationSec={video.duration}
-            />
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="text-base font-bold text-foreground">{video.title}</span>
-              <span className="text-xs text-muted">
-                {[video.channel, formatDuration(video.duration), "זוהה אוטומטית עם ההדבקה"]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
+          {video && !channelUrl ? (
+            <div className="flex items-center gap-3.5">
+              <Thumbnail
+                src={video.thumbnail}
+                alt={video.title}
+                className="h-[54px] w-24 sm:h-[83px] sm:w-[148px]"
+                durationSec={video.duration}
+              />
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-base font-bold text-foreground">{video.title}</span>
+                <span className="text-xs text-muted">
+                  {[video.channel, formatDuration(video.duration), "זוהה אוטומטית עם ההדבקה"]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="flex flex-wrap items-end gap-[18px]">
             <div className="flex w-full flex-col gap-2 sm:w-auto">
@@ -305,7 +376,7 @@ export function ConverterForm({ onSubmitted, driveConnected }: Props) {
                   className="flex flex-wrap gap-1.5 bg-transparent p-0"
                 >
                   {QUALITIES.map((q) => {
-                    const size = video.sizeEstimates[q];
+                    const size = video?.sizeEstimates[q];
                     const label = q === "4k" ? "4K" : q;
                     return (
                       <ToggleButton
@@ -370,7 +441,11 @@ export function ConverterForm({ onSubmitted, driveConnected }: Props) {
               <Spinner size="sm" />
             ) : (
               <>
-                {destination === "drive" ? "המר ושמור בדרייב" : "המר והורד למחשב"}
+                {channelUrl
+                  ? `${picked.length > 0 ? `המר ${picked.length} סרטונים` : "בחרו סרטונים"} ו${destination === "drive" ? "שמור בדרייב" : "הורד למחשב"}`
+                  : destination === "drive"
+                    ? "המר ושמור בדרייב"
+                    : "המר והורד למחשב"}
                 <span className="text-xs font-normal opacity-80">
                   {" · "}
                   <span className="ltr-run">Enter ↵</span>
@@ -513,7 +588,7 @@ function LinkField({
           }
         }}
         aria-label="לינק יוטיוב"
-        placeholder="הדביקו לינק יוטיוב — או Ctrl+V מכל מקום"
+        placeholder="הדביקו לינק לסרטון או לערוץ — או Ctrl+V מכל מקום"
         dir="auto"
         className="ltr-run flex-1 border-none bg-transparent text-[15px] text-foreground shadow-none placeholder:text-right placeholder:text-muted focus:outline-none"
       />

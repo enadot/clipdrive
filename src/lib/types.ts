@@ -129,6 +129,51 @@ export interface CreateJobInput {
   folderName: string | null;
 }
 
+/** The two lists a channel page splits its uploads into. */
+export type ChannelTab = "videos" | "shorts";
+
+export const CHANNEL_TAB_LABEL: Record<ChannelTab, string> = {
+  videos: "סרטונים",
+  shorts: "Shorts",
+};
+
+/** One upload as a channel listing reports it — enough to draw a row. */
+export interface ChannelEntry {
+  id: string;
+  title: string;
+  /** Seconds. Null where YouTube doesn't list it (Shorts). */
+  duration: number | null;
+  thumbnail: string;
+  /**
+   * Unix seconds. YouTube only offers "3 weeks ago" in a listing, so this is
+   * approximate, and absent altogether for Shorts.
+   */
+  approxTimestamp: number | null;
+}
+
+export interface ChannelListing {
+  channel: string;
+  tab: ChannelTab;
+  /** Newest first — the order the date search relies on. */
+  entries: ChannelEntry[];
+  /**
+   * Set when YouTube stopped answering partway through the list: the entries
+   * are real, but the older end is missing. Holds yt-dlp's own error line.
+   */
+  partial: string | null;
+}
+
+/** What `POST /api/jobs/batch` accepts: many uploads, one set of options. */
+export interface CreateBatchInput {
+  channel: string;
+  items: Array<Pick<ChannelEntry, "id" | "title" | "duration" | "thumbnail">>;
+  format: Format;
+  quality: Quality;
+  destination: Destination;
+  folderId: string | null;
+  folderName: string | null;
+}
+
 export interface DriveFolder {
   id: string;
   name: string;

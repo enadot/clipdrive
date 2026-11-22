@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto";
 import { readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { findOutput, toMp3, toMp4 } from "./convert";
+import { findOutput, probeDuration, toMp3, toMp4 } from "./convert";
 import { safeFileName, uploadFile } from "./drive";
 import { ensureDirs, HISTORY_FILE, jobDir, jobDirPath, WORK_DIR } from "./paths";
 import { readFile, writeFile } from "node:fs/promises";
 import { download, fetchMetadata, findSource, YoutubeError } from "./youtube";
-import type { CreateJobInput, Job, Stage } from "./types";
+import type { CreateBatchInput, CreateJobInput, Job, Stage } from "./types";
 
 /** One at a time — the queue position shown on a queued card is real. */
 const MAX_CONCURRENT = 1;
@@ -183,6 +183,53 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
   return job;
 }
 
+/**
+ * Queues many uploads at once, straight from a channel listing. The listing
+ * already has each title and thumbnail, so unlike createJob this opens no video
+ * up front — two hundred Shorts are queued in a moment, not in ten minutes.
+ * They run in the order given.
+ */
+export async function createBatch(input: CreateBatchInput): Promise<Job[]> {
+  await loadHistory();
+
+  const now = Date.now();
+  const jobs = input.items.map(
+    (item, index): Job => ({
+      id: randomUUID(),
+      url: `https://www.youtube.com/watch?v=${item.id}`,
+      format: input.format,
+      quality: input.quality,
+      destination: input.destination,
+      folderId: input.destination === "drive" ? input.folderId : null,
+      folderName: input.destination === "drive" ? input.folderName : null,
+      title: item.title,
+      channel: input.channel,
+      // Filled in from the downloaded file when the listing didn't say.
+      duration: item.duration ?? 0,
+      thumbnail: item.thumbnail || null,
+      status: "queued",
+      stage: "download",
+      stagePercent: 0,
+      speed: null,
+      eta: null,
+      bytes: null,
+      failedStage: null,
+      error: null,
+      driveLink: null,
+      driveFileId: null,
+      fileName: null,
+      // Distinct, increasing timestamps keep the queue in the order chosen.
+      createdAt: now + index,
+      finishedAt: null,
+    }),
+  );
+
+  for (const job of jobs) store.jobs.set(job.id, job);
+  emit();
+  pump();
+  return jobs;
+}
+
 /** Stops the running process but keeps the partial download for a resume. */
 export function pauseJob(id: string): void {
   const job = store.jobs.get(id);
@@ -339,6 +386,14 @@ async function run(id: string): Promise<void> {
     /* -- Stage 2: convert ----------------------------------------- */
     stage = "convert";
 
+    // Shorts arrive from a channel listing without a duration, and the
+    // conversion meter measures against it — so read it off the file itself.
+    let durationSec = store.jobs.get(id)?.duration ?? job.duration;
+    if (!durationSec) {
+      durationSec = await probeDuration(source);
+      if (durationSec) patch(id, { duration: durationSec });
+    }
+
     // A job that died during upload already has its converted file; retrying
     // should push those bytes, not transcode them again.
     let output = await findOutput(dir, job.format);
@@ -352,7 +407,7 @@ async function run(id: string): Promise<void> {
         ? await toMp3({
             source,
             dir,
-            durationSec: job.duration,
+            durationSec,
             title: job.title,
             channel: job.channel,
             onProgress,
@@ -361,7 +416,7 @@ async function run(id: string): Promise<void> {
         : await toMp4({
             source,
             dir,
-            durationSec: job.duration,
+            durationSec,
             onProgress,
             signal,
           });
