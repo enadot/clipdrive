@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Skeleton } from "@heroui/react";
 
+import { BulkActions } from "./bulk-actions";
 import { TaskCard } from "./task-card";
 import { TaskHistoryList } from "./task-history-list";
 import { dayBucket, DAY_BUCKET_LABEL } from "@/lib/format";
@@ -16,10 +17,22 @@ interface Props {
 }
 
 const ACTIVE = new Set(["running", "queued", "paused"]);
+/** Queued cards drawn in the panel; a channel batch can queue hundreds. */
+const QUEUED_SHOWN = 5;
 
 /** The side panel from screen 2a: what's live now, then a short history. */
 export function TaskPanel({ jobs, ready, onAct, onRemove }: Props) {
   const active = jobs.filter((job) => ACTIVE.has(job.status));
+  // Running and paused always show; of the queued, only the next few — in the
+  // order they'll run — with the rest summed up below.
+  const queued = active
+    .filter((job) => job.status === "queued")
+    .sort((a, b) => (a.queuePosition ?? 0) - (b.queuePosition ?? 0));
+  const shownActive = [
+    ...active.filter((job) => job.status !== "queued"),
+    ...queued.slice(0, QUEUED_SHOWN),
+  ];
+  const hiddenQueued = queued.length - Math.min(queued.length, QUEUED_SHOWN);
   // The panel is a short digest of today; older runs live on /jobs.
   const finished = jobs
     .filter(
@@ -72,9 +85,20 @@ export function TaskPanel({ jobs, ready, onAct, onRemove }: Props) {
         </a>
       ) : null}
 
-      {active.map((job) => (
+      <BulkActions jobs={jobs} />
+
+      {shownActive.map((job) => (
         <TaskCard key={job.id} job={job} onAct={onAct} onRemove={onRemove} />
       ))}
+
+      {hiddenQueued > 0 ? (
+        <Link
+          href="/jobs"
+          className="rounded-xl border border-dashed border-border px-3.5 py-2.5 text-center text-xs text-muted hover:text-foreground"
+        >
+          ועוד {hiddenQueued} בתור · הצגת הכל
+        </Link>
+      ) : null}
 
       {finished.length > 0 ? (
         <>

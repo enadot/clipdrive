@@ -5,6 +5,7 @@ import { EmptyState, Skeleton, ToggleButton, ToggleButtonGroup } from "@heroui/r
 import Link from "next/link";
 
 import { AppShell } from "@/components/app-shell";
+import { BulkActions } from "@/components/bulk-actions";
 import { TaskCard } from "@/components/task-card";
 import { useAuth } from "@/hooks/use-drive";
 import { useJobs } from "@/hooks/use-jobs";
@@ -80,6 +81,8 @@ export default function JobsPage() {
             ))}
           </ToggleButtonGroup>
         </div>
+
+        <BulkActions jobs={jobs} />
 
         {!ready ? (
           <div className="flex flex-col gap-3">

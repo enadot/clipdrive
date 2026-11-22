@@ -281,6 +281,31 @@ export async function cancelJob(id: string): Promise<void> {
 }
 
 /**
+ * Bulk cancel. "queue" drops everything still waiting (queued or paused) and
+ * lets the running job finish; "all" stops the running one too. Waiting jobs
+ * go first, so stopping the running job doesn't hand its slot to the next one.
+ * Returns how many were canceled.
+ */
+export async function cancelMany(scope: "queue" | "all"): Promise<number> {
+  await loadHistory();
+  const jobs = [...store.jobs.values()];
+  const waiting = jobs.filter((j) => j.status === "queued" || j.status === "paused");
+  const running = scope === "all" ? jobs.filter((j) => j.status === "running") : [];
+
+  for (const job of waiting) store.jobs.delete(job.id);
+  for (const job of running) {
+    store.runners.get(job.id)?.abort();
+    store.runners.delete(job.id);
+    store.jobs.delete(job.id);
+  }
+  emit();
+
+  await Promise.all([...waiting, ...running].map((job) => cleanup(job.id)));
+  pump();
+  return waiting.length + running.length;
+}
+
+/**
  * Drops a finished/failed card from the list without touching Drive. A direct
  * download's file lives in the scratch directory, so this is also what finally
  * deletes it — which is why the card says so before the ✕ is pressed.
