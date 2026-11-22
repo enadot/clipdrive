@@ -49,9 +49,13 @@ export async function fetchChannelTab(
       "--no-warnings",
       "--socket-timeout",
       "20",
-      // Turns "3 weeks ago" into a timestamp — good enough to show and sort by.
+      // Outside Israel YouTube serves machine-translated titles, and the title
+      // becomes the file name — so ask for the Hebrew originals. ("iw" is
+      // YouTube's code for Hebrew; "he" is refused.) The price: approximate
+      // dates ("לפני 3 שבועות") aren't parsed in Hebrew, so rows show none.
+      // The date picker never relied on them; it checks exact dates.
       "--extractor-args",
-      "youtubetab:approximate_date",
+      "youtube:lang=iw",
       ...authArgs(),
       `${baseUrl}/${tab}`,
     ],

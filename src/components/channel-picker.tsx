@@ -60,50 +60,60 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
   const [rangeBusy, setRangeBusy] = useState(false);
   const [rangeError, setRangeError] = useState<string | null>(null);
 
+  const loadTab = useCallback(
+    async (tab: ChannelTab, signal: AbortSignal) => {
+      let next: TabState;
+      try {
+        const res = await fetch(
+          `/api/channel?url=${encodeURIComponent(channelUrl)}&tab=${tab}`,
+          { signal },
+        );
+        const data = (await res.json()) as {
+          listing?: ChannelListing;
+          error?: string;
+          detail?: string;
+        };
+        next =
+          res.ok && data.listing
+            ? { listing: data.listing, loading: false, error: null, detail: null }
+            : {
+                listing: null,
+                loading: false,
+                error: data.error ?? "לא הצלחנו לקרוא את הערוץ.",
+                detail: data.detail ?? null,
+              };
+      } catch {
+        if (signal.aborted) return;
+        next = {
+          listing: null,
+          loading: false,
+          error: "לא הצלחנו לקרוא את הערוץ. בדקו את החיבור ונסו שוב.",
+          detail: null,
+        };
+      }
+      if (!signal.aborted) setTabs((t) => ({ ...t, [tab]: next }));
+    },
+    [channelUrl],
+  );
+
   /* Both lists load at once — the Shorts count is part of the answer. */
   useEffect(() => {
     const controller = new AbortController();
     setTabs({ videos: EMPTY_TAB, shorts: EMPTY_TAB });
     setSelected(new Set());
     setShown(PAGE);
-
-    for (const tab of TABS) {
-      void (async () => {
-        let next: TabState;
-        try {
-          const res = await fetch(
-            `/api/channel?url=${encodeURIComponent(channelUrl)}&tab=${tab}`,
-            { signal: controller.signal },
-          );
-          const data = (await res.json()) as {
-            listing?: ChannelListing;
-            error?: string;
-            detail?: string;
-          };
-          next =
-            res.ok && data.listing
-              ? { listing: data.listing, loading: false, error: null, detail: null }
-              : {
-                  listing: null,
-                  loading: false,
-                  error: data.error ?? "לא הצלחנו לקרוא את הערוץ.",
-                  detail: data.detail ?? null,
-                };
-        } catch {
-          if (controller.signal.aborted) return;
-          next = {
-            listing: null,
-            loading: false,
-            error: "לא הצלחנו לקרוא את הערוץ. בדקו את החיבור ונסו שוב.",
-            detail: null,
-          };
-        }
-        if (!controller.signal.aborted) setTabs((t) => ({ ...t, [tab]: next }));
-      })();
-    }
-
+    for (const tab of TABS) void loadTab(tab, controller.signal);
     return () => controller.abort();
-  }, [channelUrl]);
+  }, [loadTab]);
+
+  /* A list YouTube cut short can be fetched again; picks in it are kept. */
+  const reload = useCallback(
+    (tab: ChannelTab) => {
+      setTabs((t) => ({ ...t, [tab]: { ...t[tab], loading: true } }));
+      void loadTab(tab, new AbortController().signal);
+    },
+    [loadTab],
+  );
 
   const channelName =
     tabs.videos.listing?.channel || tabs.shorts.listing?.channel || "";
@@ -308,7 +318,7 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
         <span className="text-[11px] text-muted">
           {rangeBusy
             ? "בודק תאריכים מדויקים מול יוטיוב — זה לוקח כמה שניות"
-            : "אפשר למלא רק אחד מהשניים. התאריכים נבדקים מול יוטיוב, לא לפי ההערכה ברשימה."}
+            : "אפשר למלא רק אחד מהשניים. התאריך המדויק של כל סרטון נבדק מול יוטיוב."}
         </span>
         {rangeError ? (
           <span className="text-xs text-danger-soft-foreground">{rangeError}</span>
@@ -322,6 +332,7 @@ export function ChannelPicker({ channelUrl, onChange }: Props) {
         onShowMore={() => setShown((n) => n + PAGE)}
         selected={selected}
         onToggle={toggle}
+        onReload={() => reload(active)}
       />
     </div>
   );
@@ -334,6 +345,7 @@ function List({
   onShowMore,
   selected,
   onToggle,
+  onReload,
 }: {
   state: TabState;
   entries: ChannelEntry[];
@@ -341,6 +353,7 @@ function List({
   onShowMore: () => void;
   selected: Set<string>;
   onToggle: (id: string, on: boolean) => void;
+  onReload: () => void;
 }) {
   if (state.loading) {
     return (
@@ -371,10 +384,20 @@ function List({
   return (
     <div className="flex flex-col">
       {state.listing?.partial ? (
-        <span className="mb-2 text-xs text-warning">
-          יוטיוב הפסיק לענות באמצע — מוצגים {entries.length} הסרטונים החדשים ביותר, והישנים
-          יותר חסרים. נסו לטעון שוב בעוד כמה דקות.
-        </span>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-xs text-warning">
+            יוטיוב הפסיק לענות באמצע — מוצגים {entries.length} הסרטונים החדשים ביותר, והישנים
+            יותר חסרים.
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onPress={onReload}
+            className="shrink-0 text-xs font-bold text-accent-soft-foreground"
+          >
+            טעינה מחדש
+          </Button>
+        </div>
       ) : null}
       <ul className="flex max-h-[440px] flex-col overflow-y-auto rounded-xl border border-border">
         {entries.slice(0, shown).map((entry) => (
