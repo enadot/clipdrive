@@ -1,14 +1,15 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
-import { readdir, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { findOutput, toMp3, toMp4 } from "./convert";
+import { findOutput, probeDuration, toMp3, toMp4 } from "./convert";
 import { safeFileName, uploadFile } from "./drive";
 import { ensureDirs, HISTORY_FILE, jobDir, jobDirPath, WORK_DIR } from "./paths";
+import { folderNameFor, freeName, prepareLocalDir } from "./local-folder";
 import { readFile, writeFile } from "node:fs/promises";
 import { download, fetchMetadata, findSource, YoutubeError } from "./youtube";
-import type { CreateJobInput, Job, Stage } from "./types";
+import type { CreateBatchInput, CreateJobInput, Job, Stage } from "./types";
 
 /** One at a time — the queue position shown on a queued card is real. */
 const MAX_CONCURRENT = 1;
@@ -68,6 +69,9 @@ function restore(job: Job): Job {
     folderId: job.folderId ?? null,
     folderName: job.folderName ?? null,
     fileName: job.fileName ?? null,
+    localDir: job.localDir ?? null,
+    savedPath: job.savedPath ?? null,
+    batchId: job.batchId ?? null,
   };
 }
 
@@ -145,6 +149,8 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
 
   // Metadata is fetched up front so the card has a title and thumbnail the
   // moment it appears, instead of a placeholder that fills in later.
+  const localDir =
+    input.destination === "folder" ? await prepareLocalDir(input.localDir) : null;
   const meta = await fetchMetadata(input.url);
 
   const job: Job = {
@@ -173,6 +179,9 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
     driveLink: null,
     driveFileId: null,
     fileName: null,
+    localDir,
+    savedPath: null,
+    batchId: null,
     createdAt: Date.now(),
     finishedAt: null,
   };
@@ -181,6 +190,65 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
   emit();
   pump();
   return job;
+}
+
+/**
+ * Queues many uploads at once, straight from a channel listing. The listing
+ * already has each title and thumbnail, so unlike createJob this opens no video
+ * up front — two hundred Shorts are queued in a moment, not in ten minutes.
+ * They run in the order given.
+ */
+export async function createBatch(input: CreateBatchInput): Promise<Job[]> {
+  await loadHistory();
+
+  let localDir: string | null = null;
+  if (input.destination === "folder") {
+    localDir = await prepareLocalDir(input.localDir);
+    if (input.channelSubfolder && input.channel) {
+      localDir = await prepareLocalDir(path.join(localDir, folderNameFor(input.channel)));
+    }
+  }
+
+  const batchId = randomUUID();
+  const now = Date.now();
+  const jobs = input.items.map(
+    (item, index): Job => ({
+      id: randomUUID(),
+      url: `https://www.youtube.com/watch?v=${item.id}`,
+      format: input.format,
+      quality: input.quality,
+      destination: input.destination,
+      folderId: input.destination === "drive" ? input.folderId : null,
+      folderName: input.destination === "drive" ? input.folderName : null,
+      title: item.title,
+      channel: input.channel,
+      // Filled in from the downloaded file when the listing didn't say.
+      duration: item.duration ?? 0,
+      thumbnail: item.thumbnail || null,
+      status: "queued",
+      stage: "download",
+      stagePercent: 0,
+      speed: null,
+      eta: null,
+      bytes: null,
+      failedStage: null,
+      error: null,
+      driveLink: null,
+      driveFileId: null,
+      fileName: null,
+      localDir,
+      savedPath: null,
+      batchId,
+      // Distinct, increasing timestamps keep the queue in the order chosen.
+      createdAt: now + index,
+      finishedAt: null,
+    }),
+  );
+
+  for (const job of jobs) store.jobs.set(job.id, job);
+  emit();
+  pump();
+  return jobs;
 }
 
 /** Stops the running process but keeps the partial download for a resume. */
@@ -210,6 +278,31 @@ export async function cancelJob(id: string): Promise<void> {
   store.jobs.delete(id);
   emit();
   pump();
+}
+
+/**
+ * Bulk cancel. "queue" drops everything still waiting (queued or paused) and
+ * lets the running job finish; "all" stops the running one too. Waiting jobs
+ * go first, so stopping the running job doesn't hand its slot to the next one.
+ * Returns how many were canceled.
+ */
+export async function cancelMany(scope: "queue" | "all"): Promise<number> {
+  await loadHistory();
+  const jobs = [...store.jobs.values()];
+  const waiting = jobs.filter((j) => j.status === "queued" || j.status === "paused");
+  const running = scope === "all" ? jobs.filter((j) => j.status === "running") : [];
+
+  for (const job of waiting) store.jobs.delete(job.id);
+  for (const job of running) {
+    store.runners.get(job.id)?.abort();
+    store.runners.delete(job.id);
+    store.jobs.delete(job.id);
+  }
+  emit();
+
+  await Promise.all([...waiting, ...running].map((job) => cleanup(job.id)));
+  pump();
+  return waiting.length + running.length;
 }
 
 /**
@@ -339,6 +432,14 @@ async function run(id: string): Promise<void> {
     /* -- Stage 2: convert ----------------------------------------- */
     stage = "convert";
 
+    // Shorts arrive from a channel listing without a duration, and the
+    // conversion meter measures against it — so read it off the file itself.
+    let durationSec = store.jobs.get(id)?.duration ?? job.duration;
+    if (!durationSec) {
+      durationSec = await probeDuration(source);
+      if (durationSec) patch(id, { duration: durationSec });
+    }
+
     // A job that died during upload already has its converted file; retrying
     // should push those bytes, not transcode them again.
     let output = await findOutput(dir, job.format);
@@ -352,7 +453,7 @@ async function run(id: string): Promise<void> {
         ? await toMp3({
             source,
             dir,
-            durationSec: job.duration,
+            durationSec,
             title: job.title,
             channel: job.channel,
             onProgress,
@@ -361,7 +462,7 @@ async function run(id: string): Promise<void> {
         : await toMp4({
             source,
             dir,
-            durationSec: job.duration,
+            durationSec,
             onProgress,
             signal,
           });
@@ -386,6 +487,29 @@ async function run(id: string): Promise<void> {
         fileName,
         finishedAt: Date.now(),
       });
+      await saveHistory();
+      return;
+    }
+
+    // Saving to a folder on this computer: move the file there and drop the
+    // scratch directory. Same disk, so this is a rename, not a copy.
+    if (job.destination === "folder") {
+      if (!job.localDir) throw new Error("לא נבחרה תיקייה במחשב");
+      await mkdir(job.localDir, { recursive: true });
+      const target = path.join(job.localDir, await freeName(job.localDir, fileName));
+      await moveFile(output, target);
+      patch(id, {
+        status: "done",
+        stage: "convert",
+        stagePercent: 100,
+        speed: null,
+        eta: null,
+        bytes: size,
+        fileName: path.basename(target),
+        savedPath: target,
+        finishedAt: Date.now(),
+      });
+      await cleanup(id);
       await saveHistory();
       return;
     }
@@ -440,6 +564,17 @@ async function run(id: string): Promise<void> {
   } finally {
     store.runners.delete(id);
     pump();
+  }
+}
+
+/** rename, falling back to copy + delete when the target is on another drive. */
+async function moveFile(from: string, to: string): Promise<void> {
+  try {
+    await rename(from, to);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
+    await copyFile(from, to);
+    await rm(from, { force: true });
   }
 }
 

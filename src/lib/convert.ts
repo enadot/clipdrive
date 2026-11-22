@@ -3,6 +3,28 @@ import { rename, stat } from "node:fs/promises";
 import path from "node:path";
 
 const FFMPEG = process.env.FFMPEG_PATH ?? "ffmpeg";
+const FFPROBE = process.env.FFPROBE_PATH ?? "ffprobe";
+
+/** A media file's length in whole seconds, or 0 when ffprobe can't tell. */
+export function probeDuration(file: string): Promise<number> {
+  return new Promise((resolve) => {
+    const child = spawn(
+      FFPROBE,
+      ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file],
+      { stdio: ["ignore", "pipe", "ignore"] },
+    );
+    let out = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      out += chunk;
+    });
+    child.on("error", () => resolve(0));
+    child.on("close", () => {
+      const seconds = Number(out.trim());
+      resolve(Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0);
+    });
+  });
+}
 
 export interface ConvertProgress {
   /** 0–100. */

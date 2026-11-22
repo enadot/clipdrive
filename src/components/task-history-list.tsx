@@ -45,6 +45,13 @@ export function TaskHistoryList({ jobs, onAct }: Props) {
             >
               הורדה ⤓
             </a>
+          ) : job.status === "done" && job.savedPath ? (
+            <span
+              className="shrink-0 text-[11px] font-bold text-accent-soft-foreground"
+              title={job.savedPath}
+            >
+              בתיקייה ✓
+            </span>
           ) : job.status === "done" && job.driveLink ? (
             <a
               href={job.driveLink}

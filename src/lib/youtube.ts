@@ -19,7 +19,7 @@ const YT_DLP = process.env.YT_DLP_PATH ?? "yt-dlp";
  *
  * Set YT_DLP_COOKIES_FROM_BROWSER=chrome (or firefox, edge, brave…).
  */
-function authArgs(): string[] {
+export function authArgs(): string[] {
   const browser = process.env.YT_DLP_COOKIES_FROM_BROWSER?.trim();
   return browser ? ["--cookies-from-browser", browser] : [];
 }
@@ -63,7 +63,7 @@ function isClientRefusal(stderr: string): boolean {
  * up. `beforeRetry` lets the download stage clear partial files, since a
  * different client can pick a different format.
  */
-async function runWithClientFallback(
+export async function runWithClientFallback(
   buildArgs: (client?: string) => string[],
   opts: {
     onStdoutLine?: (line: string) => void;
@@ -266,20 +266,20 @@ function lastYtDlpError(stderr: string): string {
  * console, so the terminal running `npm run dev` always shows the real cause
  * even when the browser only gets the friendly sentence.
  */
-function ytDlpFailure(stderr: string): YoutubeError {
+export function ytDlpFailure(stderr: string): YoutubeError {
   const code = classifyError(stderr);
   const detail = lastYtDlpError(stderr);
   console.error(`[clipdrive] yt-dlp failed (${code}): ${detail || stderr.trim()}`);
   return new YoutubeError(code, LINK_ERROR_TEXT[code], detail);
 }
 
-interface RunResult {
+export interface RunResult {
   stdout: string;
   stderr: string;
   code: number | null;
 }
 
-function run(
+export function run(
   args: string[],
   opts: {
     onStdoutLine?: (line: string) => void;

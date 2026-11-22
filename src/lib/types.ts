@@ -35,11 +35,12 @@ export const STAGE_LABEL: Record<Stage, string> = {
  * asked for it. A direct download simply has no third stage — the file is done
  * the moment ffmpeg is, and it waits on disk until it's fetched.
  */
-export type Destination = "drive" | "download";
+export type Destination = "drive" | "download" | "folder";
 
 export const DESTINATION_LABEL: Record<Destination, string> = {
   drive: "שמירה בדרייב",
   download: "הורדה למחשב",
+  folder: "שמירה לתיקייה",
 };
 
 /** Where a finished direct-download job hands its file to the browser. */
@@ -47,9 +48,17 @@ export function downloadUrl(jobId: string): string {
   return `/api/jobs/${jobId}/file`;
 }
 
+/** Every finished direct-download file as one ZIP, or one channel batch's. */
+export function zipUrl(batchId?: string | null): string {
+  return batchId ? `/api/jobs/zip?batch=${encodeURIComponent(batchId)}` : "/api/jobs/zip";
+}
+
 /** The stages a job of this destination actually runs, in pipeline order. */
 export function stagesFor(destination: Destination | undefined): Stage[] {
-  return destination === "download" ? ["download", "convert"] : STAGES;
+  // Saving to a local folder is a rename on the same disk — no stage to show.
+  return destination === "download" || destination === "folder"
+    ? ["download", "convert"]
+    : STAGES;
 }
 
 export type JobStatus =
@@ -98,6 +107,13 @@ export interface Job {
   /** Final file size once known. */
   bytes: number | null;
 
+  /** For a "folder" job: the directory on this computer the file goes to. */
+  localDir: string | null;
+  /** For a finished "folder" job: the full path it was saved under. */
+  savedPath: string | null;
+  /** Shared by every job queued in one channel batch; null for a single video. */
+  batchId: string | null;
+
   /** Set when status is "failed" — the stage that broke. */
   failedStage: Stage | null;
   error: string | null;
@@ -127,6 +143,56 @@ export interface CreateJobInput {
   /** Required when the destination is "drive"; ignored for a direct download. */
   folderId: string | null;
   folderName: string | null;
+  /** Required when the destination is "folder": a directory on this computer. */
+  localDir: string | null;
+}
+
+/** The two lists a channel page splits its uploads into. */
+export type ChannelTab = "videos" | "shorts";
+
+export const CHANNEL_TAB_LABEL: Record<ChannelTab, string> = {
+  videos: "סרטונים",
+  shorts: "Shorts",
+};
+
+/** One upload as a channel listing reports it — enough to draw a row. */
+export interface ChannelEntry {
+  id: string;
+  title: string;
+  /** Seconds. Null where YouTube doesn't list it (Shorts). */
+  duration: number | null;
+  thumbnail: string;
+  /**
+   * Unix seconds. YouTube only offers "3 weeks ago" in a listing, so this is
+   * approximate, and absent altogether for Shorts.
+   */
+  approxTimestamp: number | null;
+}
+
+export interface ChannelListing {
+  channel: string;
+  tab: ChannelTab;
+  /** Newest first — the order the date search relies on. */
+  entries: ChannelEntry[];
+  /**
+   * Set when YouTube stopped answering partway through the list: the entries
+   * are real, but the older end is missing. Holds yt-dlp's own error line.
+   */
+  partial: string | null;
+}
+
+/** What `POST /api/jobs/batch` accepts: many uploads, one set of options. */
+export interface CreateBatchInput {
+  channel: string;
+  items: Array<Pick<ChannelEntry, "id" | "title" | "duration" | "thumbnail">>;
+  format: Format;
+  quality: Quality;
+  destination: Destination;
+  folderId: string | null;
+  folderName: string | null;
+  localDir: string | null;
+  /** Put the files in a subfolder named after the channel. */
+  channelSubfolder: boolean;
 }
 
 export interface DriveFolder {

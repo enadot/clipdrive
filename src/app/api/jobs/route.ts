@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { createJob, listJobs } from "@/lib/jobs";
 import { NotConnectedError } from "@/lib/google-auth";
+import { LocalFolderError } from "@/lib/local-folder";
 import { QUALITIES, type CreateJobInput, type Quality } from "@/lib/types";
 import { normalizeYoutubeUrl, YoutubeError } from "@/lib/youtube";
 
@@ -35,7 +36,10 @@ export async function POST(request: NextRequest) {
 
   // A direct download needs nothing but the link — that's the whole point of
   // it, so the folder requirement applies to Drive jobs only.
-  const destination = body.destination === "download" ? "download" : "drive";
+  const destination =
+    body.destination === "download" || body.destination === "folder"
+      ? body.destination
+      : "drive";
   if (destination === "drive" && (!body.folderId || !body.folderName)) {
     return NextResponse.json({ error: "צריך לבחור תיקיית יעד" }, { status: 400 });
   }
@@ -48,9 +52,13 @@ export async function POST(request: NextRequest) {
       destination,
       folderId: body.folderId ?? null,
       folderName: body.folderName ?? null,
+      localDir: typeof body.localDir === "string" ? body.localDir : null,
     });
     return NextResponse.json({ job }, { status: 201 });
   } catch (err) {
+    if (err instanceof LocalFolderError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     if (err instanceof NotConnectedError) {
       return NextResponse.json({ error: err.message }, { status: 401 });
     }
