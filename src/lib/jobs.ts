@@ -1,11 +1,12 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
-import { readdir, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { findOutput, probeDuration, toMp3, toMp4 } from "./convert";
 import { safeFileName, uploadFile } from "./drive";
 import { ensureDirs, HISTORY_FILE, jobDir, jobDirPath, WORK_DIR } from "./paths";
+import { folderNameFor, freeName, prepareLocalDir } from "./local-folder";
 import { readFile, writeFile } from "node:fs/promises";
 import { download, fetchMetadata, findSource, YoutubeError } from "./youtube";
 import type { CreateBatchInput, CreateJobInput, Job, Stage } from "./types";
@@ -68,6 +69,9 @@ function restore(job: Job): Job {
     folderId: job.folderId ?? null,
     folderName: job.folderName ?? null,
     fileName: job.fileName ?? null,
+    localDir: job.localDir ?? null,
+    savedPath: job.savedPath ?? null,
+    batchId: job.batchId ?? null,
   };
 }
 
@@ -145,6 +149,8 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
 
   // Metadata is fetched up front so the card has a title and thumbnail the
   // moment it appears, instead of a placeholder that fills in later.
+  const localDir =
+    input.destination === "folder" ? await prepareLocalDir(input.localDir) : null;
   const meta = await fetchMetadata(input.url);
 
   const job: Job = {
@@ -173,6 +179,9 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
     driveLink: null,
     driveFileId: null,
     fileName: null,
+    localDir,
+    savedPath: null,
+    batchId: null,
     createdAt: Date.now(),
     finishedAt: null,
   };
@@ -192,6 +201,15 @@ export async function createJob(input: CreateJobInput): Promise<Job> {
 export async function createBatch(input: CreateBatchInput): Promise<Job[]> {
   await loadHistory();
 
+  let localDir: string | null = null;
+  if (input.destination === "folder") {
+    localDir = await prepareLocalDir(input.localDir);
+    if (input.channelSubfolder && input.channel) {
+      localDir = await prepareLocalDir(path.join(localDir, folderNameFor(input.channel)));
+    }
+  }
+
+  const batchId = randomUUID();
   const now = Date.now();
   const jobs = input.items.map(
     (item, index): Job => ({
@@ -218,6 +236,9 @@ export async function createBatch(input: CreateBatchInput): Promise<Job[]> {
       driveLink: null,
       driveFileId: null,
       fileName: null,
+      localDir,
+      savedPath: null,
+      batchId,
       // Distinct, increasing timestamps keep the queue in the order chosen.
       createdAt: now + index,
       finishedAt: null,
@@ -445,6 +466,29 @@ async function run(id: string): Promise<void> {
       return;
     }
 
+    // Saving to a folder on this computer: move the file there and drop the
+    // scratch directory. Same disk, so this is a rename, not a copy.
+    if (job.destination === "folder") {
+      if (!job.localDir) throw new Error("לא נבחרה תיקייה במחשב");
+      await mkdir(job.localDir, { recursive: true });
+      const target = path.join(job.localDir, await freeName(job.localDir, fileName));
+      await moveFile(output, target);
+      patch(id, {
+        status: "done",
+        stage: "convert",
+        stagePercent: 100,
+        speed: null,
+        eta: null,
+        bytes: size,
+        fileName: path.basename(target),
+        savedPath: target,
+        finishedAt: Date.now(),
+      });
+      await cleanup(id);
+      await saveHistory();
+      return;
+    }
+
     /* -- Stage 3: upload ------------------------------------------ */
     stage = "upload";
     if (!job.folderId) throw new Error("לא נבחרה תיקיית יעד בדרייב");
@@ -495,6 +539,17 @@ async function run(id: string): Promise<void> {
   } finally {
     store.runners.delete(id);
     pump();
+  }
+}
+
+/** rename, falling back to copy + delete when the target is on another drive. */
+async function moveFile(from: string, to: string): Promise<void> {
+  try {
+    await rename(from, to);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
+    await copyFile(from, to);
+    await rm(from, { force: true });
   }
 }
 

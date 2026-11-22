@@ -6,7 +6,7 @@ import { Skeleton } from "@heroui/react";
 import { TaskCard } from "./task-card";
 import { TaskHistoryList } from "./task-history-list";
 import { dayBucket, DAY_BUCKET_LABEL } from "@/lib/format";
-import type { Job } from "@/lib/types";
+import { zipUrl, type Job } from "@/lib/types";
 
 interface Props {
   jobs: Job[];
@@ -28,6 +28,9 @@ export function TaskPanel({ jobs, ready, onAct, onRemove }: Props) {
         dayBucket(job.finishedAt ?? job.createdAt) === "today",
     )
     .slice(0, 6);
+
+  // Everything waiting to be downloaded — not just today's few on screen.
+  const waiting = jobs.filter((job) => job.status === "done" && job.destination === "download");
 
   if (!ready) {
     return (
@@ -56,6 +59,17 @@ export function TaskPanel({ jobs, ready, onAct, onRemove }: Props) {
         <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-xs text-muted">
           עוד לא המרתם כלום. הדביקו לינק והמשימה הראשונה תופיע כאן.
         </div>
+      ) : null}
+
+      {waiting.length >= 2 ? (
+        <a
+          href={zipUrl()}
+          download
+          className="flex items-center justify-between rounded-xl border border-accent-soft-foreground/40 bg-accent-soft px-3.5 py-2.5 text-xs font-bold text-accent-soft-foreground hover:brightness-95"
+        >
+          <span>הורדת כל הקבצים כ-ZIP</span>
+          <span className="ltr-run opacity-80">{waiting.length} ⤓</span>
+        </a>
       ) : null}
 
       {active.map((job) => (

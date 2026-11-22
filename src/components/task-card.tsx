@@ -120,6 +120,10 @@ function DoneCard({ job, onRemove }: { job: Job; onRemove: (id: string) => void 
           >
             הורדה ⤓
           </a>
+        ) : job.destination === "folder" ? (
+          <span className="shrink-0 rounded-lg bg-accent-soft px-2.5 py-1 text-[11px] font-bold text-accent-soft-foreground">
+            נשמר בתיקייה
+          </span>
         ) : job.driveLink ? (
           <Button
             size="sm"
@@ -148,6 +152,10 @@ function DoneCard({ job, onRemove }: { job: Job; onRemove: (id: string) => void 
       {local ? (
         <span className="text-[11px] text-muted">
           הקובץ מחכה כאן להורדה · הסרה מהרשימה תמחק אותו
+        </span>
+      ) : job.savedPath ? (
+        <span dir="ltr" className="truncate text-start text-[11px] text-muted" title={job.savedPath}>
+          {job.savedPath}
         </span>
       ) : null}
     </Card>

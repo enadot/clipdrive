@@ -12,7 +12,7 @@ import { TaskPanel } from "@/components/task-panel";
 import { useAuth } from "@/hooks/use-drive";
 import { useJobs } from "@/hooks/use-jobs";
 import { bytes } from "@/lib/format";
-import { downloadUrl, type Job } from "@/lib/types";
+import { downloadUrl, zipUrl, type Job } from "@/lib/types";
 
 export default function HomePage() {
   return (
@@ -93,9 +93,25 @@ function useCompletionToasts(jobs: Job[]) {
       return;
     }
 
+    const finishedBatches = new Set<string>();
+
     for (const job of jobs) {
       if (job.status !== "done" || announced.current.has(job.id)) continue;
       announced.current.add(job.id);
+
+      // A channel batch speaks once, when its last file is done — two hundred
+      // toasts would bury the screen.
+      if (job.batchId) {
+        finishedBatches.add(job.batchId);
+        continue;
+      }
+
+      if (job.destination === "folder") {
+        toast.success("הקובץ נשמר בתיקייה", {
+          description: job.savedPath ?? job.title,
+        });
+        continue;
+      }
 
       const local = job.destination === "download";
 
@@ -119,6 +135,35 @@ function useCompletionToasts(jobs: Job[]) {
               }
             : undefined,
       });
+    }
+
+    for (const batchId of finishedBatches) {
+      const batch = jobs.filter((j) => j.batchId === batchId);
+      const pending = batch.some((j) => ["queued", "running", "paused"].includes(j.status));
+      if (pending) continue;
+      const done = batch.filter((j) => j.status === "done");
+      const failed = batch.length - done.length;
+      const first = batch[0];
+      const summary = `${done.length} קבצים מוכנים${failed ? ` · ${failed} נכשלו` : ""}`;
+
+      if (first.destination === "download") {
+        toast.success(`הערוץ "${first.channel}" הסתיים`, {
+          description: summary,
+          actionProps: {
+            children: "הורדה כ-ZIP ⤓",
+            onPress: () => {
+              window.location.href = zipUrl(batchId);
+            },
+          },
+        });
+      } else {
+        toast.success(`הערוץ "${first.channel}" הסתיים`, {
+          description:
+            first.destination === "folder" && first.localDir
+              ? `${summary} · ${first.localDir}`
+              : summary,
+        });
+      }
     }
 
     for (const job of jobs) {

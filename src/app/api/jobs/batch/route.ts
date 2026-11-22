@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createBatch } from "@/lib/jobs";
+import { LocalFolderError } from "@/lib/local-folder";
 import { QUALITIES, type CreateBatchInput, type Quality } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -34,19 +35,34 @@ export async function POST(request: NextRequest) {
   const quality: Quality = QUALITIES.includes(body.quality as Quality)
     ? (body.quality as Quality)
     : "1080p";
-  const destination = body.destination === "download" ? "download" : "drive";
+  const destination =
+    body.destination === "download" || body.destination === "folder"
+      ? body.destination
+      : "drive";
   if (destination === "drive" && (!body.folderId || !body.folderName)) {
     return NextResponse.json({ error: "צריך לבחור תיקיית יעד" }, { status: 400 });
   }
 
-  const jobs = await createBatch({
-    channel: typeof body.channel === "string" ? body.channel : "",
-    items,
-    format,
-    quality,
-    destination,
-    folderId: body.folderId ?? null,
-    folderName: body.folderName ?? null,
-  });
-  return NextResponse.json({ count: jobs.length }, { status: 201 });
+  try {
+    const jobs = await createBatch({
+      channel: typeof body.channel === "string" ? body.channel : "",
+      items,
+      format,
+      quality,
+      destination,
+      folderId: body.folderId ?? null,
+      folderName: body.folderName ?? null,
+      localDir: typeof body.localDir === "string" ? body.localDir : null,
+      channelSubfolder: body.channelSubfolder !== false,
+    });
+    return NextResponse.json(
+      { count: jobs.length, localDir: jobs[0]?.localDir ?? null },
+      { status: 201 },
+    );
+  } catch (err) {
+    if (err instanceof LocalFolderError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
+  }
 }
